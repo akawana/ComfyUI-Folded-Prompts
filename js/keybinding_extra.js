@@ -58,7 +58,7 @@ function registerPrefixSetting() {
                 "Keybinding Extra",
                 "Keybinding Extra"
             ],
-            name: "Line comment prefix:",
+            name: "Line comment (CTRL+/) prefix:",
             type: "text",
             defaultValue: defaultPrefix,
             placeholder: "// or # or --",
