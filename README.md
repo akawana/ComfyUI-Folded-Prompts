@@ -132,7 +132,7 @@ Output:
     null
 ]
 ```
-![](preview1.jpg)
+<img src="preview1.jpg" width="100%"/>
 
 ## Installation
 
