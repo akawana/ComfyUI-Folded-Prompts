@@ -20,7 +20,6 @@ app.registerExtension({
 
     setup() {
         registerPrefixSetting();
-        installInlineToggleInjector();
 
         window.addEventListener(
             "keydown",
@@ -52,13 +51,11 @@ function registerPrefixSetting() {
     const defaultPrefix = "//";
 
     if (settingsApi && typeof settingsApi.addSetting === "function") {
+
         settingsApi.addSetting({
             id: SETTING_ID,
-            category: [
-                "Keybinding Extra",
-                "Keybinding Extra"
-            ],
-            name: "Line comment (CTRL+/) prefix:",
+            category: ["Keybinding Extra", "Comment Settings", "B"],
+            name: "(Ctrl+/) Line comment prefix:",
             type: "text",
             defaultValue: defaultPrefix,
             placeholder: "// or # or --",
@@ -67,15 +64,24 @@ function registerPrefixSetting() {
                 try { localStorage.setItem(FALLBACK_KEY, cleaned); } catch {}
             }
         });
+        settingsApi.addSetting({
+            id: ENABLE_ID,
+            category: ["Keybinding Extra", "Comment Settings", "A"],
+            name: "Enable line comment:",
+            type: "boolean",
+            defaultValue: true,
+            onChange: (value) => {
+                setToggleEnabled(value);
+            }
+        });
+
     } else {
         if (!getCommentPrefix()) {
             try { localStorage.setItem(FALLBACK_KEY, defaultPrefix); } catch {}
         }
-    }
-
-    // Ensure enable flag exists (default true)
-    if (localStorage.getItem(ENABLE_FALLBACK_KEY) == null) {
-        try { localStorage.setItem(ENABLE_FALLBACK_KEY, "true"); } catch {}
+        if (localStorage.getItem(ENABLE_FALLBACK_KEY) == null) {
+            try { localStorage.setItem(ENABLE_FALLBACK_KEY, "true"); } catch {}
+        }
     }
 }
 
@@ -101,9 +107,23 @@ function getCommentPrefix() {
 }
 
 function isToggleEnabled() {
-    let v = null;
-    try { v = localStorage.getItem(ENABLE_FALLBACK_KEY); } catch {}
-    return String(v) !== "false";
+    const settingsApi = app.ui?.settings;
+
+    if (settingsApi && typeof settingsApi.getSettingValue === "function") {
+        try {
+            const val = settingsApi.getSettingValue(ENABLE_ID);
+            if (val !== undefined && val !== null) {
+                return !!val;
+            }
+        } catch (e) {
+        }
+    }
+    try {
+        const v = localStorage.getItem(ENABLE_FALLBACK_KEY);
+        return String(v) !== "false";
+    } catch {
+        return true;
+    }
 }
 
 function setToggleEnabled(v) {
@@ -111,89 +131,6 @@ function setToggleEnabled(v) {
     try { localStorage.setItem(ENABLE_FALLBACK_KEY, str); } catch {}
 }
 
-/* ------------------ INLINE TOGGLE IN SAME ROW (DOM INJECT) ------------------ */
-
-function installInlineToggleInjector() {
-    const observer = new MutationObserver(() => {
-        tryInjectInlineToggle();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-}
-
-function tryInjectInlineToggle() {
-    const labelEls = Array.from(document.querySelectorAll("*"))
-        .filter(el => el.textContent && el.textContent.trim() === "Line comment prefix:");
-
-    for (const labelEl of labelEls) {
-        const row = findSettingRowContainer(labelEl);
-        if (!row) continue;
-
-        if (row.querySelector(".kbe-inline-toggle")) continue;
-
-        const toggle = buildInlineToggle();
-        row.prepend(toggle);
-
-        toggle.style.marginRight = "12px";
-        row.style.display = row.style.display || "flex";
-        row.style.alignItems = row.style.alignItems || "center";
-	row.style.width = "100%";
-
-	// Find the text input for prefix and pin it to the right
-	const inputEl =
-	    row.querySelector('input[type="text"], input[type="search"], textarea') ||
-	    row.querySelector(".setting-input input");
-
-	const topRow = inputEl?.closest("div.flex.flex-row.items-center.gap-2") 
-            || row.closest("div.flex.flex-row.items-center.gap-2") 
-            || row;
-
-	if (topRow) {
-	    topRow.style.width = "100%";
-	}
-	if (inputEl) {
-	    inputEl.style.marginLeft = "auto";
-	    inputEl.style.width = "60px";
-	    inputEl.style.minWidth = "60px";
-	    inputEl.style.maxWidth = "60px";
-	    inputEl.style.textAlign = "left";
-	}
-    }
-}
-
-function findSettingRowContainer(labelEl) {
-    let el = labelEl;
-    for (let i = 0; i < 6 && el; i++) {
-        if (el.classList) {
-            if (
-                el.classList.contains("setting") ||
-                el.classList.contains("setting-item") ||
-                el.classList.contains("settings-item") ||
-                el.classList.contains("settings-row")
-            ) {
-                return el;
-            }
-        }
-        el = el.parentElement;
-    }
-    return labelEl.parentElement;
-}
-
-function buildInlineToggle() {
-    const wrap = document.createElement("div");
-    wrap.className = "kbe-inline-toggle";
-
-    const input = document.createElement("input");
-    input.type = "checkbox";
-    input.checked = isToggleEnabled();
-    input.className = "comfyui-toggle";
-
-    input.addEventListener("change", () => {
-        setToggleEnabled(input.checked);
-    });
-
-    wrap.appendChild(input);
-    return wrap;
-}
 
 /* ------------------------- ACTIVE EDITOR DETECTION ------------------------ */
 
