@@ -1,12 +1,10 @@
-# Expose an empty backend node mapping.
-# This package exists only to serve a frontend JS extension.
-
-NODE_CLASS_MAPPINGS = {}
-NODE_DISPLAY_NAME_MAPPINGS = {}
-
-# Frontend extension directory
+# Frontend extension (JS)
 WEB_DIRECTORY = "./js"
 
+# Python nodes
+from .nodes.TextCleanerSplitter import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
+
+# Required exports
 __all__ = [
     "NODE_CLASS_MAPPINGS",
     "NODE_DISPLAY_NAME_MAPPINGS",
