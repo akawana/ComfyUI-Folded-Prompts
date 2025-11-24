@@ -7,6 +7,9 @@ const FALLBACK_KEY = "keybinding_extra.comment_prefix";
 const ENABLE_ID = "keybinding_extra.enabled";
 const ENABLE_FALLBACK_KEY = "keybinding_extra.enabled";
 
+const DELETE_LINE_ENABLED_ID = "keybinding_extra.delete_line_enabled";
+const DELETE_LINE_ENABLED_FALLBACK_KEY = "keybinding_extra.delete_line_enabled";
+
 app.registerExtension({
     name: "Keybinding Extra",
 
@@ -41,6 +44,21 @@ app.registerExtension({
         );
 
         console.log("[Keybinding Extra] Loaded.");
+
+	window.addEventListener("keydown", (e) => {
+	    const isMac = navigator.platform.toUpperCase().includes("MAC");
+	    const mod = isMac ? e.metaKey : e.ctrlKey;
+
+	    if (mod && e.shiftKey && e.code === "KeyL") {
+        	if (!isDeleteLineEnabled()) return;
+	        console.log("[Keybinding Extra] Ctrl+Shift+L (delete line) triggered");
+        	e.preventDefault();
+	        e.stopPropagation();
+        	deleteCurrentLine();
+	    }
+	}, true);
+        console.log("[Keybinding Extra] Ctrl+Shift+L (Delete Line) loaded.");
+
     }
 });
 
@@ -54,8 +72,8 @@ function registerPrefixSetting() {
 
         settingsApi.addSetting({
             id: SETTING_ID,
-            category: ["Keybinding Extra", "Comment Settings", "B"],
-            name: "(Ctrl+/) Line comment prefix:",
+            category: ["Keybinding Extra", "Comment (Ctrl+/)", "B"],
+            name: "Line comment prefix:",
             type: "text",
             defaultValue: defaultPrefix,
             placeholder: "// or # or --",
@@ -66,7 +84,7 @@ function registerPrefixSetting() {
         });
         settingsApi.addSetting({
             id: ENABLE_ID,
-            category: ["Keybinding Extra", "Comment Settings", "A"],
+            category: ["Keybinding Extra", "Comment (Ctrl+/)", "A"],
             name: "Enable line comment:",
             type: "boolean",
             defaultValue: true,
@@ -74,14 +92,21 @@ function registerPrefixSetting() {
                 setToggleEnabled(value);
             }
         });
+	settingsApi.addSetting({
+            id: DELETE_LINE_ENABLED_ID,
+            category: ["Keybinding Extra", "Delete Line (Ctrl+Shift+L)", "A"],
+            name: "Enable delete current line:",
+            type: "boolean",
+            defaultValue: true,
+            onChange: (value) => {
+                try { localStorage.setItem(DELETE_LINE_ENABLED_FALLBACK_KEY, value ? "true" : "false"); } catch {}
+            }
+        });
 
     } else {
-        if (!getCommentPrefix()) {
-            try { localStorage.setItem(FALLBACK_KEY, defaultPrefix); } catch {}
-        }
-        if (localStorage.getItem(ENABLE_FALLBACK_KEY) == null) {
-            try { localStorage.setItem(ENABLE_FALLBACK_KEY, "true"); } catch {}
-        }
+	if (!localStorage.getItem(FALLBACK_KEY)) localStorage.setItem(FALLBACK_KEY, defaultPrefix);
+        if (localStorage.getItem(ENABLE_FALLBACK_KEY) == null) localStorage.setItem(ENABLE_FALLBACK_KEY, "true");
+        if (localStorage.getItem(DELETE_LINE_ENABLED_FALLBACK_KEY) == null) localStorage.setItem(DELETE_LINE_ENABLED_FALLBACK_KEY, "true");
     }
 }
 
@@ -104,6 +129,17 @@ function getCommentPrefix() {
     }
 
     return sanitizePrefix(v);
+}
+
+function isDeleteLineEnabled() {
+    const api = app.ui?.settings;
+    if (api?.getSettingValue) {
+        try {
+            const val = api.getSettingValue(DELETE_LINE_ENABLED_ID);
+            if (val !== undefined) return !!val;
+        } catch {}
+    }
+    return localStorage.getItem(DELETE_LINE_ENABLED_FALLBACK_KEY) !== "false";
 }
 
 function isToggleEnabled() {
@@ -343,5 +379,55 @@ function toggleTextareaComments(ta) {
     ta.value = lines.join("\n");
     ta.selectionStart = start;
     ta.selectionEnd = end;
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+
+/* -------------------------- DELETE LINE SHORTCUT: Ctrl+Shift+L -------------------------- */
+
+/* Ctrl+Shift+L — delete line where cursor is (no selection handling) */
+
+function deleteCurrentLine() {
+    const ace = getActiveAceEditor();
+    if (ace) { deleteCurrentLineAce(ace); return; }
+
+    const cm = getActiveCodeMirror();
+    if (cm) { deleteCurrentLineCodeMirror(cm); return; }
+
+    const ta = getActiveTextarea();
+    if (ta) { deleteCurrentLineTextarea(ta); return; }
+}
+
+function deleteCurrentLineAce(editor) {
+    editor.selection.selectLine();
+    editor.removeLines();
+}
+
+function deleteCurrentLineCodeMirror(cmRoot) {
+    const view = cmRoot.cmView || cmRoot.view || cmRoot;
+    if (!view?.state || !view?.dispatch) return;
+
+    const cursor = view.state.selection.main.head;
+    const line = view.state.doc.lineAt(cursor);
+
+    view.dispatch({
+        changes: { from: line.from, to: line.to + 1 },
+        selection: { anchor: line.from },
+	userEvent: "delete"
+    });
+}
+
+function deleteCurrentLineTextarea(ta) {
+    const start = ta.selectionStart;
+    const value = ta.value;
+
+    let lineStart = value.lastIndexOf("\n", start - 1) + 1;
+    let lineEnd = value.indexOf("\n", start);
+    if (lineEnd === -1) lineEnd = value.length;
+    else lineEnd += 1;
+
+    ta.setSelectionRange(lineStart, lineEnd);
+    document.execCommand("delete");  
+
     ta.dispatchEvent(new Event("input", { bubbles: true }));
 }
