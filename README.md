@@ -4,7 +4,7 @@ A minimal ComfyUI custom node (empty node) that injects handy keyboard shortcuts
 
 In ComfyUI Settings you can enable/disable shortcuts and customize their behavior.
 
-## Features (v1)
+## Features (v1.01)
 
 This extension provides **two** keyboard shortcuts:
 
