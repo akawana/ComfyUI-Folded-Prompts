@@ -13,8 +13,8 @@ includes = []
 # "requires-comfyui" = ">=1.0.0"  # ComfyUI version compatibility
 publisher = "akawana"
 name = "ComfyUI-Keybinding-Extra"
-version = "1.02"
-frontend_version = "1.02"
+version = "1.02.1"
+frontend_version = "1.02.1"
 description = "Adds shortcuts for commenting/deleting lines and includes a Text Cleaner & Splitter node for regional prompting."
 readme = "README.md"
 requires-python = ">=3.10"
