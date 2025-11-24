@@ -1,28 +1,21 @@
 [project]
-[project.urls]
-Repository = "https://github.com/akawana/ComfyUI-Keybinding-extra"
-#  Used by Comfy Registry https://registry.comfy.org
-Documentation = "https://github.com/akawana/ComfyUI-Keybinding-extra/wiki"
-"Bug Tracker" = "https://github.com/akawana/ComfyUI-Keybinding-extra/issues"
-
-[tool.comfy]
-PublisherId = "akawana"
-DisplayName = "ComfyUI-Keybinding-extra"
-Icon = ""
-includes = [] 
-# "requires-comfyui" = ">=1.0.0"  # ComfyUI version compatibility
-publisher = "akawana"
-name = "ComfyUI-Keybinding-Extra"
-version = "1.02.2"
-frontend_version = "1.02.2"
+name = "comfyui-keybinding-extra"
+version = "1.03.3"
+frontend_version = "1.02.3"
 description = "Adds shortcuts for commenting/deleting lines and includes a Text Cleaner & Splitter node for regional prompting."
 readme = "README.md"
 requires-python = ">=3.10"
 
-packages = ["comfyui_keybinding_extra"]
+packages = ["nodes"]
+
+[project.urls]
+Repository = "https://github.com/akawana/ComfyUI-Keybinding-extra"
+Documentation = "https://github.com/akawana/ComfyUI-Keybinding-extra/wiki"
+"Bug Tracker" = "https://github.com/akawana/ComfyUI-Keybinding-extra/issues"
 
 [tool.comfy_node]
 package = "nodes"
+publisher = "akawana"
 display_name = "Keybinding Extra"
 summary = "Keyboard shortcuts + Text Cleaner & Splitter node"
-tags = ["utility", "Regional prompting", "shortcuts"]
+tags = ["utility", "text", "regional prompting", "shortcuts"]
