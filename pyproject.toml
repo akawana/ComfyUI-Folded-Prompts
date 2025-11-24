@@ -1,4 +1,5 @@
 [project]
+publisher = "akawana"
 name = "ComfyUI-Keybinding-Extra"
 version = "1.02"
 frontend_version = "1.02"
