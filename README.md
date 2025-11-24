@@ -132,7 +132,7 @@ Output:
     null
 ]
 ```
-![](preview.png)
+![](preview1.jpg)
 
 ## Installation
 
