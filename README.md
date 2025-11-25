@@ -16,7 +16,7 @@ This extension now provides **3 keyboard shortcuts** and **1 utility node**:
 
 1. **Toggle line comment — `Ctrl + /`**
 2. **Delete line — `Ctrl + Shift + L`**
-3. **Delete tag (word) under cursor, move it down and comment — `Ctrl + Shift + L`**
+3. **Move tag (word) under cursor down and comment it — `Ctrl + Shift + L`**
 4. Node: **Text Cleaner & Splitter node**
 
 ---
@@ -66,7 +66,7 @@ Works in the same editors/areas:
 
 ---
 
-### 3. Move & Comment word — `Ctrl + Shift + /`
+### 3. Move & Comment word(tag) or selection — `Ctrl + Shift + /`
 
 Works in the same editors/areas:
 
@@ -77,9 +77,9 @@ Works in the same editors/areas:
 **Behavior**
 - Press `Ctrl + Shift + /` to cut the word under the cursor (or all selected words).
 - Removes the word(s) from anywhere in the line.
-- Inserts them on the next line.
-- Comments the moved word(s) using the comment prefix set in the extension settings.
-- Supports editor undo (`Ctrl + Z`) where possible.
+- Inserts them on the next new line.
+- Comments the moved word(s) on new line using the comment prefix set in the extension settings.
+- Supports editor undo (`Ctrl + Z`) (I know about whole text selection).
 
 ---
 
