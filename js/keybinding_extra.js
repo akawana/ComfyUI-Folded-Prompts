@@ -30,7 +30,6 @@ app.registerExtension({
 
 
 	window.addEventListener("keydown", (e) => {
-	        console.log("[Key pressed");
             if (!isToggleEnabled()) return;
 
             const isMac = navigator.platform.toUpperCase().includes("MAC");
