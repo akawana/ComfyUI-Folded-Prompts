@@ -1,27 +1,27 @@
 [project]
-name = "comfyui-keybinding-extra"
+name = "Comfyui Folded prompts"
 publisher = "akawana"
 version = "1.04"
 frontend_version = "1.04"
-description = "Adds shortcuts for commenting/deleting lines and includes a Text Cleaner & Splitter node for regional prompting."
+description = "Builds a folder-based tree from prompt lines. Lets you organize prompts into folders. Also adds several configurable keybindings for text editing (line commenting, regional prompting areas). Splits the prompt into regions for Regional Prompting."
 readme = "README.md"
 requires-python = ">=3.10"
 
 packages = ["nodes"]
 
 [project.urls]
-Repository = "https://github.com/akawana/ComfyUI-Keybinding-extra"
-Documentation = "https://github.com/akawana/ComfyUI-Keybinding-extra/wiki"
-"Bug Tracker" = "https://github.com/akawana/ComfyUI-Keybinding-extra/issues"
+Repository = "https://github.com/akawana/ComfyUI-Folded-Prompts"
+Documentation = "https://github.com/akawana/ComfyUI-Folded-Prompts/wiki"
+"Bug Tracker" = "https://github.com/akawana/ComfyUI-Folded-Prompts/issues"
 
 [tool.comfy_node]
 package = "nodes"
 publisher = "akawana"
-display_name = "Keybinding Extra"
-summary = "Keyboard shortcuts + Text Cleaner & Splitter node"
-tags = ["utility", "text", "regional prompting", "shortcuts"]
+display_name = "Comfyui Folded prompts"
+summary = "Builds a folder-based tree from prompt lines."
+tags = ["prompt", "three", "regional prompting", "shortcuts"]
 
 [tool.comfy]
 PublisherId = "akawana" # TODO (fill in Publisher ID from Comfy Registry Website).
-DisplayName = "Keybinding Extra" # Display name for the Custom Node. Can be changed later.
+DisplayName = "Comfyui Folded prompts" # Display name for the Custom Node. Can be changed later.
 Icon = "https://example.com/icon.png"
