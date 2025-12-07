@@ -54,7 +54,7 @@ class FPFoldedPrompts:
     RETURN_NAMES = ("text",)
     FUNCTION = "run"
     CATEGORY = "prompt/utils"
-    OUTPUT_NODE = True
+    OUTPUT_NODE = False
 
     def __init__(self):
         base_dir = os.path.dirname(__file__)

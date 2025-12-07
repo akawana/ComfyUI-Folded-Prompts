@@ -26,6 +26,7 @@ class FPTextAreaPlus:
     RETURN_NAMES = ("text",)
     FUNCTION = "execute"
     CATEGORY = "utils/primitive"
+    OUTPUT_NODE = False
 
     def execute(self, before_text=None, text="", after_text=None):
         parts = []

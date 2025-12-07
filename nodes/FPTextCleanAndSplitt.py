@@ -32,6 +32,7 @@ class FPTextCleanAndSplitt:
     RETURN_NAMES = ("cleaned_text", "ar_list")
     FUNCTION = "execute"
     CATEGORY = "prompt/utils"
+    OUTPUT_NODE = False
 
     def execute(self, before_text=None, text="", after_text=None):
         # Build full text from inputs (None or missing = ignore)
