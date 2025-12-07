@@ -3,53 +3,33 @@
 ### Utilities for working with Lists and toggling groups
 https://github.com/akawana/ComfyUI-Utils-extra
 
-### Extra shortcuts for editing texts and prompts + text splitting for Regional Prompts
-https://github.com/akawana/ComfyUI-Keybinding-extra
+### Folding of promts in to tree with extra features. Extra shortcuts for editing prompts. Reginal prompting text separation.
+https://github.com/akawana/ComfyUI-Folded-Prompts
 
 ### RGBYP 5-color mask editor
 https://github.com/akawana/ComfyUI-RGBYP-Mask-Editor
 
 ---
 
-# Keybinding Extra
+# Folded Prompts
 
-A minimal ComfyUI extension that adds several quality-of-life tools:
+This extension now provides **3 utility nodes**:
 
-- Injects handy keyboard shortcuts into the ComfyUI frontend  
-- Adds a utility node **Text Cleaner & Splitter** (v1.02) for text preprocessing
+- **FP Folded Prompt** – hierarchical prompt organizer with folder-based editing UI  
+- **FP Text Clean And Split** – parser that removes commented lines and extracts Regional Prompting areas  
+- **FP Text Area Plus** – extended text input node with before/after text injection  
 
-In ComfyUI Settings you can enable/disable shortcuts and customize their behavior.  
-The utility node can clean text, remove comments, and extract regional prompt tags.
-
----
-
-## Features (v1.04)
-
-This extension now provides **3 keyboard shortcuts** and **1 utility node**:
-
-1. **Toggle line comment — `Ctrl + /`**
-2. **Delete line — `Ctrl + Shift + L`**
-3. **Move tag (word) under cursor down and comment it — `Ctrl + Shift + /`**
-4. Node: **Text Cleaner & Splitter node** (in utils/primitive category)
-
+And new keyboard shortcuts with settings.
 ---
 
 ## Keyboard Shortcuts
 
 ### 1. Toggle line comment — `Ctrl + /`
 
-Works in all ComfyUI text editors/areas:
-
-- Ace  
-- CodeMirror  
-- Plain textarea inputs  
-
 **Behavior**
 - Press `Ctrl + /` to comment/uncomment the current line or selected lines.
 - By default it uses `// ` (with a space).
 - If a line already starts with `//` or `// `, the shortcut removes it.
-
----
 
 ### Configurable comment prefix
 
@@ -62,30 +42,14 @@ In **ComfyUI → Settings → Keybinding Extra** you can set any prefix you want
 
 There is also an enable/disable toggle for the comment shortcut.
 
----
-
 ### 2. Delete line — `Ctrl + Shift + L`
-
-Works in the same editors/areas:
-
-- Ace  
-- CodeMirror  
-- Plain textarea inputs  
 
 **Behavior**
 - Press `Ctrl + Shift + L` to delete the current line.
 - If multiple lines are selected, deletes all selected lines.
 - Deletion supports editor undo (`Ctrl + Z`) where possible.
 
----
-
 ### 3. Move & Comment word(tag) or selection — `Ctrl + Shift + /`
-
-Works in the same editors/areas:
-
-- Ace  
-- CodeMirror  
-- Plain textarea inputs  
 
 **Behavior**
 - Press `Ctrl + Shift + /` to cut the word under the cursor (or all selected words).
