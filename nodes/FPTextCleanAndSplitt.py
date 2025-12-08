@@ -67,14 +67,30 @@ class FPTextCleanAndSplitt:
                 continue
 
             # Detect <AR1> to <AR5>
+            inline_match = re.search(r"<AR([1-5])>(.*?)</>", raw_line, re.IGNORECASE)
+            if inline_match:
+                tag_num = int(inline_match.group(1))
+                content = inline_match.group(2).strip()
+                if content:
+                    ar_contents[f"AR{tag_num}"].append(content)
+
+                start, end = inline_match.span()
+                before = raw_line[:start]
+                after = raw_line[end:]
+                remaining = (before + after).rstrip("\n")
+                if remaining.strip():
+                    cleaned_lines.append(remaining.rstrip())
+                i += 1
+                continue
+
+
             match = re.match(r"<AR([1-5])>(.*)$", line, re.IGNORECASE)
             if match:
                 tag_num = int(match.group(1))
-                tail = match.group(2)  # всё, что идёт после <ARn>
+                tail = match.group(2)  
 
                 block_lines = []
 
-                # --- 1) Случай: всё в одной строке <AR1>... </>
                 if "</>" in tail:
                     before, _sep, _after = tail.partition("</>")
                     before = before.strip()
@@ -86,14 +102,12 @@ class FPTextCleanAndSplitt:
                     i += 1
                     continue
 
-                # --- 2) Случай: многострочный блок, ищем закрывающий тег в следующих строках
                 i += 1
                 while i < len(lines):
                     inner_raw = lines[i]
                     inner_stripped = inner_raw.lstrip()
                     inner_line = inner_raw.strip()
 
-                    # сначала проверяем на закрывающий тег, чтобы не потерять его из-за prefix
                     if "</>" in inner_line:
                         before, _sep, _after = inner_raw.partition("</>")
                         before = before.strip()
@@ -102,7 +116,6 @@ class FPTextCleanAndSplitt:
                         i += 1
                         break
 
-                    # потом уже фильтруем по prefix
                     if prefix and inner_stripped.startswith(prefix):
                         i += 1
                         continue
