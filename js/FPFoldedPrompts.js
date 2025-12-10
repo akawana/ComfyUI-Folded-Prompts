@@ -1353,7 +1353,7 @@ import { app } from "../../../scripts/app.js";
                     "custom",
                     "FPFoldedPromptsTree",
                     null,
-                    null,
+                    () => {},
                     { serialize: false }
                 );
                 s.treeWidget = treeWidget;

@@ -2,6 +2,7 @@ import os
 import json
 import traceback
 
+print = lambda *a, **k: None  # Disable print statements for cleaner output
 
 class FPFoldedPrompts:
     """FPFoldedPrompts node.
@@ -61,7 +62,7 @@ class FPFoldedPrompts:
         self.data_dir = os.path.join(base_dir, "..", "pf_data")
         try:
             os.makedirs(self.data_dir, exist_ok=True)
-            print(f"[FPFoldedPrompts] Data dir: {self.data_dir}")
+            # print(f"[FPFoldedPrompts] Data dir: {self.data_dir}")
         except Exception as e:
             print(f"[FPFoldedPrompts] Failed to create data dir: {e}")
             traceback.print_exc()
@@ -81,14 +82,7 @@ class FPFoldedPrompts:
         return before_text or main_text
 
     def run(self, text: str, pf_json: str = "", pf_node_id: str = "", before_text: str = "", **kwargs):
-        print("[FPFoldedPrompts] run() called")
-        print(
-            f"[FPFoldedPrompts] Incoming text length: {len(text) if text else 0}"
-        )
-        print(
-            f"[FPFoldedPrompts] Incoming pf_json length: {len(pf_json) if pf_json else 0}"
-        )
-        print(f"[FPFoldedPrompts] Incoming pf_node_id: {pf_node_id!r}")
+        # print("[FPFoldedPrompts] run() called")
 
         # 1. Save pf_json to file if node_id and non-empty json are present
         if pf_json and pf_node_id:
@@ -96,23 +90,21 @@ class FPFoldedPrompts:
                 filename = os.path.join(self.data_dir, f"pf_{pf_node_id}.json")
                 with open(filename, "w", encoding="utf-8") as f:
                     f.write(pf_json)
-                print(f"[FPFoldedPrompts] Saved JSON to: {filename}")
+                # print(f"[FPFoldedPrompts] Saved JSON to: {filename}")
             except Exception as e:
                 print(f"[FPFoldedPrompts] Failed to save JSON: {e}")
                 traceback.print_exc()
-        else:
-            print("[FPFoldedPrompts] Skip saving JSON (empty pf_json or pf_node_id)")
 
         # 2. If pf_json is empty — just return the original text
         if not pf_json or not pf_json.strip():
-            print("[FPFoldedPrompts] pf_json is empty, returning raw text")
+            # print("[FPFoldedPrompts] pf_json is empty, returning raw text")
             merged = self._merge_before(before_text, text or "")
             return (merged,)
 
         # 3. Parse JSON and build the final text according to the rules
         try:
             tree = json.loads(pf_json)
-            print("[FPFoldedPrompts] Parsed pf_json successfully")
+            # print("[FPFoldedPrompts] Parsed pf_json successfully")
         except Exception as e:
             print(f"[FPFoldedPrompts] Failed to parse pf_json, returning raw text: {e}")
             traceback.print_exc()
@@ -122,7 +114,7 @@ class FPFoldedPrompts:
         try:
             result_lines = []
             items = tree.get("items") or []
-            print(f"[FPFoldedPrompts] Root items: {len(items)}")
+            # print(f"[FPFoldedPrompts] Root items: {len(items)}")
 
             def walk(items_list, parent_area="ALL"):
                 """Walk through tree items and collect enabled lines.
