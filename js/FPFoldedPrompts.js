@@ -20,6 +20,13 @@ import { app } from "../../../scripts/app.js";
     const TREE_CONTROL_OFFSET_Y = -2;
 
 
+    const TREE_WEIGHT_MIN = 1.0;
+    const TREE_WEIGHT_STEP = 0.05;
+    const TREE_WEIGHT_COL_WIDTH = 80;
+    const TREE_WEIGHT_BUTTON_SIZE = 18;
+    const TREE_WEIGHT_TEXT_BOX_WIDTH = 40;
+    const TREE_WEIGHT_RIGHT_PADDING = 8;
+
     let PF_CONTEXT_MENU_PATCHED = false;
 
     function patchFPFoldedPromptsContextMenu() {
@@ -134,6 +141,80 @@ import { app } from "../../../scripts/app.js";
     }
 
 
+
+    // Detect weight from a full line text without changing the text itself.
+    // Pattern: "(anything:1.23)" with optional comma and spaces after.
+    function detectLineWeightFromText(text) {
+        if (text == null) return TREE_WEIGHT_MIN;
+        try {
+            const m = String(text).match(/^\(([\s\S]*):([0-9]+(?:\.[0-9]+)?)\)\s*(,\s*)?$/);
+            if (m) {
+                const num = parseFloat(m[2]);
+                if (Number.isFinite(num) && num >= TREE_WEIGHT_MIN) {
+                    // round to 2 decimals to avoid float noise
+                    return Math.round(num * 100) / 100;
+                }
+            }
+        } catch (e) {
+            console.warn("[FPFoldedPrompts] detectLineWeightFromText error", e);
+        }
+        return TREE_WEIGHT_MIN;
+    }
+
+    // Apply weight to a raw line text.
+    // - If text already has outer "(...:number)" we only replace that number.
+    // - If there is no weight yet and weight <= 1.0, we return text as is.
+    // - If there is no weight yet and weight > 1.0, we wrap line into
+    //   "(text_without_trailing_comma:weight)" and move the comma outside.
+    function applyWeightToLineText(rawText, weight) {
+        let text = rawText == null ? "" : String(rawText);
+        let w = (typeof weight === "number" && Number.isFinite(weight)) ? weight : TREE_WEIGHT_MIN;
+        if (w < TREE_WEIGHT_MIN) w = TREE_WEIGHT_MIN;
+        // round to 2 decimals
+        w = Math.round(w * 100) / 100;
+        const wStr = w.toFixed(2);
+        const EPS = 1e-6;
+
+        // Case 1: already weighted "(...:number)" with optional comma tail
+        // Case 1: already weighted "(...:number)" with optional comma tail
+        let m = text.match(/^\(([\s\S]*):([0-9]+(?:\.[0-9]+)?)\)\s*(,\s*)?$/);
+        if (m) {
+            const inner = m[1];
+            const oldNum = parseFloat(m[2]);
+            const tail = m[3] || "";
+
+            // Если новый вес == 1.0 — убираем скобки и вес,
+            // в конце оставляем ", "
+            if (w <= TREE_WEIGHT_MIN + EPS) {
+                // убираем возможную запятую и пробелы в конце inner
+                let cleaned = inner.replace(/\s*,\s*$/, "");
+                return cleaned + ", ";
+            }
+
+            // Вес есть и меняется — подменяем только число после двоеточия
+            if (Number.isFinite(oldNum) && Math.abs(oldNum - w) < EPS) {
+                // ничего не изменилось, сохраняем оригинальную строку
+                return text;
+            }
+            return `(${inner}:${wStr})${tail}`;
+        }
+
+        // Case 2: no weight in text
+        if (w <= TREE_WEIGHT_MIN + EPS) {
+            // base weight => don't touch text
+            return text;
+        }
+
+        // We must add weight, respecting trailing comma
+        let baseText = text;
+        let tail = "";
+        const m2 = baseText.match(/^(.*?)(,\s*)$/);
+        if (m2) {
+            baseText = m2[1];
+            tail = m2[2];
+        }
+        return `(${baseText}:${wStr})${tail}`;
+    }
     // ------------------- TEXT -> TREE -------------------
 
     function parseFolderTextToTree(rawText) {
@@ -216,6 +297,7 @@ import { app } from "../../../scripts/app.js";
                 enabled: areaBlockEnabled,
                 area: areaBlockArea,
                 text: textCombined,
+                weight: detectLineWeightFromText(textCombined),
             };
 
             const targetList = getTargetListForCurrentFolder(currentFolder);
@@ -309,6 +391,7 @@ import { app } from "../../../scripts/app.js";
                     enabled,
                     area,
                     text: innerText,
+                    weight: detectLineWeightFromText(innerText),
                 };
 
                 const targetList = getTargetListForCurrentFolder(currentFolder);
@@ -360,6 +443,7 @@ import { app } from "../../../scripts/app.js";
                 enabled,
                 area: "ALL",
                 text: text,
+                weight: detectLineWeightFromText(text),
             };
 
             const targetList = getTargetListForCurrentFolder(currentFolder);
@@ -403,6 +487,9 @@ import { app } from "../../../scripts/app.js";
                     walk(item.children || [], newPath);
                 } else if (item.type === "line") {
                     let lineText = item.text || "";
+
+                    // Apply weight to the line text (if any)
+                    lineText = applyWeightToLineText(lineText, item.weight);
 
                     // If the line has area (AR1..AR5) — wrap in tag
                     if (item.area && item.area !== "ALL") {
@@ -600,16 +687,25 @@ import { app } from "../../../scripts/app.js";
     function syncJsonWidget(node) {
         const s = node._pf;
         if (!s || !s.pfJsonWidget) return;
+
         if (s.textWidget) {
             s.textWidget.value = treeToText(s.tree);
         }
+
         try {
             const json = JSON.stringify(s.tree);
             s.pfJsonWidget.value = json;
             log("syncJsonWidget() ok, length:", json.length);
-            console.log("[FPFoldedPrompts] syncJsonWidget pf_json:", json); // <<< вот тут
+            console.log("[FPFoldedPrompts] syncJsonWidget pf_json:", json);
         } catch (e) {
             console.warn("[FPFoldedPrompts] syncJsonWidget() failed:", e);
+        }
+
+        if (s.textWidget && typeof s.textWidget.callback === "function") {
+            s.textWidget.callback(s.textWidget.value, s.textWidget, node, app);
+        }
+        if (s.pfJsonWidget && typeof s.pfJsonWidget.callback === "function") {
+            s.pfJsonWidget.callback(s.pfJsonWidget.value, s.pfJsonWidget, node, app);
         }
     }
 
@@ -837,11 +933,68 @@ import { app } from "../../../scripts/app.js";
             const label =
                 row.type === "folder" ? item.title || "Folder" : item.text || "";
 
-            // Maximum text width: from labelX to the right edge of the node with a small padding
-            const maxTextWidth = widgetWidth - (labelX + 2) - 8; // 8px padding on the right
+            // Maximum text width: from labelX to the right edge of the node.
+            // For lines we reserve space on the right for the weight controls column.
+            let reservedRight = 8;
+            if (row.type === "line") {
+                reservedRight += TREE_WEIGHT_COL_WIDTH;
+            }
+            const maxTextWidth = widgetWidth - (labelX + 2) - reservedRight;
             const clippedLabel = clipTextToWidth(ctx, label, maxTextWidth);
 
             ctx.fillText(clippedLabel, labelX + 2, rowCenterCanvas + 4);
+
+            // Draw weight controls for line rows (number + [-] and [+] buttons).
+            if (row.type === "line") {
+                let weight = typeof item.weight === "number" ? item.weight : TREE_WEIGHT_MIN;
+                if (!isFinite(weight) || weight < TREE_WEIGHT_MIN) {
+                    weight = TREE_WEIGHT_MIN;
+                }
+                item.weight = weight;
+
+                const btnSize = TREE_WEIGHT_BUTTON_SIZE;
+                const btnSpacing = 2;
+                const rightPad = TREE_WEIGHT_RIGHT_PADDING;
+                const numberBoxW = TREE_WEIGHT_TEXT_BOX_WIDTH;
+
+                const plusX = widgetWidth - rightPad - btnSize;
+                const plusY = rowCenterCanvas - btnSize / 2;
+                const minusX = plusX - btnSpacing - btnSize;
+                const minusY = rowCenterCanvas - btnSize / 2;
+                const numberBoxX = minusX - btnSpacing - numberBoxW;
+                const numberBoxY = rowCenterCanvas - btnSize / 2;
+
+                // Buttons background
+                ctx.strokeStyle = "#666";
+                ctx.fillStyle = "#222";
+                ctx.strokeRect(minusX, minusY, btnSize, btnSize);
+                ctx.strokeRect(plusX, plusY, btnSize, btnSize);
+                ctx.fillRect(minusX, minusY, btnSize, btnSize);
+                ctx.fillRect(plusX, plusY, btnSize, btnSize);
+
+                // Button labels
+                ctx.fillStyle = "#ccc";
+                ctx.font = TREE_FONT_SIZE_LINE + "px " + TREE_FONT_FAMILY;
+                ctx.textBaseline = "middle";
+                ctx.fillText("-", minusX + btnSize / 2 - 3, rowCenterCanvas);
+                ctx.fillText("+", plusX + btnSize / 2 - 5, rowCenterCanvas + 1);
+
+                // Weight value box — only show text when weight > 1.0
+                if (weight > TREE_WEIGHT_MIN + 0.0001) {
+                    const weightText = weight.toFixed(2);
+                    ctx.strokeStyle = "#555";
+                    ctx.fillStyle = "#111";
+                    ctx.strokeRect(numberBoxX, numberBoxY, numberBoxW, btnSize);
+                    ctx.fillRect(numberBoxX, numberBoxY, numberBoxW, btnSize);
+
+                    ctx.fillStyle = "#ccc";
+                    ctx.textBaseline = "middle";
+                    const tw = ctx.measureText(weightText).width;
+                    const tx = numberBoxX + (numberBoxW - tw) / 2;
+                    const ty = rowCenterCanvas + 1;
+                    ctx.fillText(weightText, tx, ty);
+                }
+            }
         }
 
         ctx.restore();
@@ -851,6 +1004,7 @@ import { app } from "../../../scripts/app.js";
             paddingX,
             contentStartY,
             rowCount: flat.length,
+            widgetWidth,
         };
     }
 
@@ -871,7 +1025,7 @@ import { app } from "../../../scripts/app.js";
         const localX = pos[0];
         const localY = pos[1] - widgetY;
 
-        const { lineH, paddingX, contentStartY, rowCount } = layout;
+        const { lineH, paddingX, contentStartY, rowCount, widgetWidth } = layout;
 
         const relY = localY - contentStartY;
         if (relY < 0) return false;
@@ -890,6 +1044,20 @@ import { app } from "../../../scripts/app.js";
         const areaX = cbX + cbSize + 6;
         const areaW = cbSize;
         const areaH = cbSize;
+
+        // Weight controls geometry (for line rows). Uses the same layout as drawTreeWidget.
+        const btnSize = TREE_WEIGHT_BUTTON_SIZE;
+        const btnSpacing = 2;
+        const rightPad = TREE_WEIGHT_RIGHT_PADDING;
+        const numberBoxW = TREE_WEIGHT_TEXT_BOX_WIDTH;
+        const effectiveWidgetWidth = widgetWidth || (node.size ? node.size[0] : 260);
+
+        const plusX = effectiveWidgetWidth - rightPad - btnSize;
+        const plusYLocal = contentStartY + index * lineH + (lineH - btnSize) / 2;
+        const minusX = plusX - btnSpacing - btnSize;
+        const minusYLocal = plusYLocal;
+        const numberBoxX = minusX - btnSpacing - numberBoxW;
+        const numberBoxYLocal = plusYLocal;
 
         const iconWidth = 12;
         const iconX = areaX + areaW + 8;
@@ -939,6 +1107,62 @@ import { app } from "../../../scripts/app.js";
             syncJsonWidget(node);
             node.graph?.setDirtyCanvas(true, true);
             return true;
+        }
+
+        // Weight controls: [-] and [+] buttons at the right side of line rows
+        if (row.type === "line") {
+            const btnSizeLocal = TREE_WEIGHT_BUTTON_SIZE;
+
+            // Minus button
+            // Minus button
+            if (
+                localX >= minusX &&
+                localX <= minusX + btnSizeLocal &&
+                localY >= minusYLocal &&
+                localY <= minusYLocal + btnSizeLocal
+            ) {
+                let w = typeof item.weight === "number" ? item.weight : TREE_WEIGHT_MIN;
+                if (!isFinite(w) || w < TREE_WEIGHT_MIN) {
+                    w = TREE_WEIGHT_MIN;
+                }
+                w -= TREE_WEIGHT_STEP;
+                if (w < TREE_WEIGHT_MIN) w = TREE_WEIGHT_MIN;
+                // round to 2 decimals to avoid FP noise
+                w = Math.round(w * 100) / 100;
+                item.weight = w;
+
+                // сразу обновляем текст строки с новым весом
+                item.text = applyWeightToLineText(item.text, w);
+
+                syncJsonWidget(node);
+                node.graph?.setDirtyCanvas(true, true);
+                return true;
+            }
+
+            // Plus button
+            // Plus button
+            if (
+                localX >= plusX &&
+                localX <= plusX + btnSizeLocal &&
+                localY >= plusYLocal &&
+                localY <= plusYLocal + btnSizeLocal
+            ) {
+                let w = typeof item.weight === "number" ? item.weight : TREE_WEIGHT_MIN;
+                if (!isFinite(w) || w < TREE_WEIGHT_MIN) {
+                    w = TREE_WEIGHT_MIN;
+                }
+                w += TREE_WEIGHT_STEP;
+                // round to 2 decimals
+                w = Math.round(w * 100) / 100;
+                item.weight = w;
+
+                // сразу обновляем текст строки с новым весом
+                item.text = applyWeightToLineText(item.text, w);
+
+                syncJsonWidget(node);
+                node.graph?.setDirtyCanvas(true, true);
+                return true;
+            }
         }
 
         // Folder expand/collapse on icon or label

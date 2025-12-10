@@ -14,6 +14,12 @@ https://github.com/akawana/ComfyUI-RGBYP-Mask-Editor
 
 ---
 
+## Version changes
+**V 2.0**
+Added line weight control to the "FP Folded Prompts" node. You can now set the weight of tags or any text.
+
+---
+
 # Folded Prompts
 
 This extension now provides **3 utility nodes**:
@@ -70,6 +76,9 @@ Useful for large projects where you need to store many previous prompts, reuse p
 
 The node saves JSON representations of your trees in `/input/prompts_folded/`.  
 This folder is optional — you may delete it at any time. All data is still stored in the workflow itself.
+
+**V 2.0**
+Added line weight control to the "FP Folded Prompts" node. You can now set the weight of tags or any text.
 
 <img src="preview_folded_prompt.jpg" width="100%"/>
 
