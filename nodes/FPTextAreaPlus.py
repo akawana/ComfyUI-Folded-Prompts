@@ -2,17 +2,18 @@ class FPTextAreaPlus:
     @classmethod
     def INPUT_TYPES(cls):
         return {
-            "required": {},
+            "required": {
+                "text": ("STRING", {
+                    "multiline": True,
+                    "default": "",
+                    "placeholder": "Main text..."
+                }),
+            },
             "optional": {
                 "before_text": ("STRING", {
                     "multiline": False,
                     "default": "",
                     "forceInput": True
-                }),
-                "text": ("STRING", {
-                    "multiline": True,
-                    "default": "",
-                    "placeholder": "Main text..."
                 }),
                 "after_text": ("STRING", {
                     "multiline": False,
