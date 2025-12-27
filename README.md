@@ -1,6 +1,6 @@
 ## Other My Nodes
 
-Utilities for working with Lists, Regions, Toggling groups, Caching conditions: [ComfyUI Utils Extra](https://github.com/akawana/ComfyUI-Utils-extra)
+Utilities for working with Lists, Regions, Toggling groups, Caching conditions: [ComfyUI AK Pack](https://github.com/akawana/ComfyUI-AK-Pack)
 
 Folding of promts in to tree with extra features. Extra shortcuts for editing prompts. Reginal prompting text separation: [ComfyUI Folded Prompts](https://github.com/akawana/ComfyUI-Folded-Prompts)
 
