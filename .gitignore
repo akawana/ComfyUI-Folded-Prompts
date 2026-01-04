@@ -16,3 +16,4 @@ env/
 # Operating System files
 .DS_Store
 Thumbs.db
+pf_data/pf_-1.json

@@ -8,24 +8,33 @@ class FPTextCleanAndSplitt:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "text": ("STRING", {
-                    "multiline": True,
-                    "default": "",
-                    "forceInput": True
-                }),
+                "text": (
+                    "STRING",
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "forceInput": True,
+                    },
+                ),
             },
             "optional": {
-                "before_text": ("STRING", {
-                    "multiline": False,
-                    "default": "",
-                    "forceInput": True
-                }),
-                "after_text": ("STRING", {
-                    "multiline": False,
-                    "default": "",
-                    "forceInput": True
-                }),
-            }
+                "before_text": (
+                    "STRING",
+                    {
+                        "multiline": False,
+                        "default": "",
+                        "forceInput": True,
+                    },
+                ),
+                "after_text": (
+                    "STRING",
+                    {
+                        "multiline": False,
+                        "default": "",
+                        "forceInput": True,
+                    },
+                ),
+            },
         }
 
     RETURN_TYPES = ("STRING", "LIST", "STRING")
@@ -42,25 +51,21 @@ class FPTextCleanAndSplitt:
 
         full = "\n\n".join([s for s in (before_text, text, after_text) if s != ""])
 
-        # Удаляем AR-блоки (и inline, и многострочные) — чтобы правки внутри AR не трогали cache key
         cleaned_for_hash = re.sub(
             r"<AR([1-5])>(?:(?!</>).)*</>",
             "",
             full,
-            flags=re.IGNORECASE | re.DOTALL
+            flags=re.IGNORECASE | re.DOTALL,
         )
 
-        # Нормализуем переводы строк и "мусор" вокруг запятых
         cleaned_for_hash = cleaned_for_hash.replace("\r\n", "\n").replace("\r", "\n")
-        cleaned_for_hash = re.sub(r"\s*,\s*", ", ", cleaned_for_hash)       # пробелы вокруг запятых
-        cleaned_for_hash = re.sub(r"(?:,\s*){2,}", ", ", cleaned_for_hash)  # ", ," -> ", "
+        cleaned_for_hash = re.sub(r"\s*,\s*", ", ", cleaned_for_hash)
+        cleaned_for_hash = re.sub(r"(?:,\s*){2,}", ", ", cleaned_for_hash)
         cleaned_for_hash = re.sub(r"(?:,\s*)+$", "", cleaned_for_hash).strip()
 
         return hash(cleaned_for_hash)
 
-
     def execute(self, before_text=None, text="", after_text=None):
-        # Build full text from inputs (None or missing = ignore)
         parts = []
         if before_text:
             parts.append(before_text.rstrip())
@@ -72,7 +77,7 @@ class FPTextCleanAndSplitt:
         full_text = "\n".join(filter(None, parts))
 
         if not full_text.strip():
-            return ("", [None] * 5)
+            return ("", [None] * 5, "")
 
         prefix = self.get_comment_prefix()
         lines = full_text.splitlines()
@@ -86,15 +91,13 @@ class FPTextCleanAndSplitt:
             stripped = raw_line.lstrip()
             line = raw_line.strip()
 
-            # Skip comment lines
             if prefix and stripped.startswith(prefix):
                 i += 1
                 continue
 
-            # Detect <AR1> to <AR5>
-            # inline_match = re.search(r"<AR([1-5])>(.*?)</>", raw_line, re.IGNORECASE)
-            # Collect ALL inline <ARn>...</> tags on this line, then remove them all
-            inline_matches = list(re.finditer(r"<AR([1-5])>(.*?)</>", raw_line, re.IGNORECASE))
+            inline_matches = list(
+                re.finditer(r"<AR([1-5])>(.*?)</>", raw_line, re.IGNORECASE)
+            )
             if inline_matches:
                 for m in inline_matches:
                     tag_num = int(m.group(1))
@@ -102,8 +105,9 @@ class FPTextCleanAndSplitt:
                     if content:
                         ar_contents[f"AR{tag_num}"].append(content)
 
-                # Remove all inline tags from the line
-                remaining = re.sub(r"<AR([1-5])>.*?</>", "", raw_line, flags=re.IGNORECASE)
+                remaining = re.sub(
+                    r"<AR([1-5])>.*?</>", "", raw_line, flags=re.IGNORECASE
+                )
                 remaining = remaining.replace("\r\n", "\n").rstrip("\n")
 
                 remaining = re.sub(r"\s*,\s*", ", ", remaining)
@@ -119,11 +123,10 @@ class FPTextCleanAndSplitt:
                 i += 1
                 continue
 
-
             match = re.match(r"<AR([1-5])>(.*)$", line, re.IGNORECASE)
             if match:
                 tag_num = int(match.group(1))
-                tail = match.group(2)  
+                tail = match.group(2)
 
                 block_lines = []
 
@@ -164,17 +167,13 @@ class FPTextCleanAndSplitt:
                     ar_contents[f"AR{tag_num}"].append(content)
                 continue
 
-            # Keep only non-empty lines
             if line:
                 cleaned_lines.append(raw_line.rstrip())
             i += 1
 
-        # cleaned_text = "\n".join(cleaned_lines)
-        cleaned_text = "\n".join([ln.rstrip().replace("\r\n", "\n") for ln in cleaned_lines]).strip()
-
-        # print("[cleaned] len=", len(cleaned_text), "hash=", hash(cleaned_text), "repr_end=", repr(cleaned_text[-80:]))
-
-        # print("[dbg] len=", len(text), "hash=", hash(text), "repr=", repr(text[-50:]))
+        cleaned_text = "\n".join(
+            [ln.rstrip().replace("\r\n", "\n") for ln in cleaned_lines]
+        ).strip()
 
         ar_list = []
         for n in range(1, 6):
@@ -183,11 +182,20 @@ class FPTextCleanAndSplitt:
 
         impact_lines = ["[LAB]"]
         for n in range(1, 6):
-            parts = ar_contents.get(f"AR{n}", [])
-            if not parts:
+            parts_local = ar_contents.get(f"AR{n}", [])
+            if not parts_local:
                 continue
 
-            flat = " ".join([str(p).replace("\r\n", "\n").replace("\r", "\n").strip() for p in parts if p is not None and str(p).strip() != ""])
+            flat = " ".join(
+                [
+                    str(p)
+                    .replace("\r\n", "\n")
+                    .replace("\r", "\n")
+                    .strip()
+                    for p in parts_local
+                    if p is not None and str(p).strip() != ""
+                ]
+            )
             flat = re.sub(r"\s*,\s*", ", ", flat)
             flat = re.sub(r"(?:,\s*){2,}", ", ", flat)
             flat = re.sub(r"(?:,\s*)+$", "", flat).strip()
@@ -202,14 +210,42 @@ class FPTextCleanAndSplitt:
 
             impact_lines.append(f"[AR{n}]{flat}")
 
+        bt = (before_text or "").strip()
+        at = (after_text or "").strip()
+
+        if bt or at:
+            new_ar_list = []
+            for v in ar_list:
+                if v is None:
+                    new_ar_list.append(None)
+                else:
+                    new_ar_list.append(f"{bt} {v} {at}".strip())
+            ar_list = new_ar_list
+
+            new_impact_lines = []
+            for line in impact_lines:
+                if line.startswith("[AR") and "]" in line:
+                    tag, rest = line.split("]", 1)
+                    rest = rest or ""
+                    rest = rest.strip()
+                    if rest:
+                        new_line = f"{tag}] {bt} {rest} {at}".rstrip()
+                    else:
+                        new_line = f"{tag}] {bt} {at}".rstrip()
+                    new_impact_lines.append(new_line)
+                else:
+                    new_impact_lines.append(line)
+            impact_lines = new_impact_lines
+
         impact_wildcard = "\n".join(impact_lines)
 
         return (cleaned_text, ar_list, impact_wildcard)
 
     def get_comment_prefix(self):
         try:
-            settings_path = os.path.join(os.path.dirname(
-                __file__), "..", "..", "..", "user", "settings.json")
+            settings_path = os.path.join(
+                os.path.dirname(__file__), "..", "..", "..", "user", "settings.json"
+            )
             if os.path.exists(settings_path):
                 with open(settings_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
@@ -222,9 +258,9 @@ class FPTextCleanAndSplitt:
 
 
 NODE_CLASS_MAPPINGS = {
-    "FPTextCleanAndSplitt": FPTextCleanAndSplitt
+    "FPTextCleanAndSplitt": FPTextCleanAndSplitt,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "FPTextCleanAndSplitt": "FP Text Clean And Splitt"
+    "FPTextCleanAndSplitt": "FP Text Clean And Splitt",
 }
