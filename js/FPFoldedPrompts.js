@@ -773,7 +773,7 @@ import { app } from "../../../scripts/app.js";
             if (mainButton) mainButton.label = "Edit";
         }
 
-        node.graph?.setDirtyCanvas(true, true);
+        // node.graph?.setDirtyCanvas(true, true);
     }
 
     function handleMainButton(node) {
@@ -785,12 +785,12 @@ import { app } from "../../../scripts/app.js";
 
         if (s.mode === "text") {
             const raw = (textWidget && textWidget.value) || "";
-            log("Converting text -> tree, length:", raw.length);
-            s.tree = parseFolderTextToTree(raw);
-            rebuildFlat(s);
-            syncJsonWidget(node);
-
-            savePromptText(node);
+            if (raw !== s._textSnapshot) {
+                s.tree = parseFolderTextToTree(raw);
+                rebuildFlat(s);
+                syncJsonWidget(node);
+                savePromptText(node);
+            }
 
             s.mode = "tree";
         } else {
@@ -799,6 +799,7 @@ import { app } from "../../../scripts/app.js";
             if (textWidget) {
                 textWidget.value = restore;
             }
+            s._textSnapshot = restore;
             s.mode = "text";
         }
 
@@ -1083,7 +1084,7 @@ import { app } from "../../../scripts/app.js";
             }
             rebuildFlat(s);
             syncJsonWidget(node);
-            node.graph?.setDirtyCanvas(true, true);
+            // node.graph?.setDirtyCanvas(true, true);
             return true;
         }
 
@@ -1106,7 +1107,7 @@ import { app } from "../../../scripts/app.js";
             }
             rebuildFlat(s);
             syncJsonWidget(node);
-            node.graph?.setDirtyCanvas(true, true);
+            // node.graph?.setDirtyCanvas(true, true);
             return true;
         }
 
@@ -1135,7 +1136,7 @@ import { app } from "../../../scripts/app.js";
                 item.text = applyWeightToLineText(item.text, w);
 
                 syncJsonWidget(node);
-                node.graph?.setDirtyCanvas(true, true);
+                // node.graph?.setDirtyCanvas(true, true);
                 return true;
             }
 
@@ -1159,7 +1160,7 @@ import { app } from "../../../scripts/app.js";
                 item.text = applyWeightToLineText(item.text, w);
 
                 syncJsonWidget(node);
-                node.graph?.setDirtyCanvas(true, true);
+                // node.graph?.setDirtyCanvas(true, true);
                 return true;
             }
         }
@@ -1180,8 +1181,8 @@ import { app } from "../../../scripts/app.js";
             if (overIcon || overLabel) {
                 item.expanded = !item.expanded;
                 rebuildFlat(s);
-                syncJsonWidget(node);
-                node.graph?.setDirtyCanvas(true, true);
+                // syncJsonWidget(node); // no need to sync JSON on expand/collapse
+                // node.graph?.setDirtyCanvas(true, true);
                 return true;
             }
         }
@@ -1340,7 +1341,7 @@ import { app } from "../../../scripts/app.js";
                         resetTree(st.tree);
                         rebuildFlat(st);
                         syncJsonWidget(node);
-                        node.graph?.setDirtyCanvas(true, true);
+                        // node.graph?.setDirtyCanvas(true, true);
                     }
                 );
                 s.resetButton = resetButton;
@@ -1413,7 +1414,7 @@ import { app } from "../../../scripts/app.js";
                 updateModeUI(node);
                 node.onResize = function () {
                     updateModeUI(node);
-                    node.graph?.setDirtyCanvas(true, true);
+                    // node.graph?.setDirtyCanvas(true, true);
                 };
 
             };
@@ -1468,7 +1469,7 @@ import { app } from "../../../scripts/app.js";
                     s.mode = "tree";
                 } else {
                     // Just in case, align pf_json and textWidget to the tree
-                    syncJsonWidget(node);
+                    // syncJsonWidget(node);
                 }
 
                 updateModeUI(node);
