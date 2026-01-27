@@ -54,7 +54,7 @@ class FPFoldedPrompts:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("text",)
     FUNCTION = "run"
-    CATEGORY = "prompt/utils"
+    CATEGORY = "AK/Folded Prompts"
     OUTPUT_NODE = False
 
     def __init__(self):

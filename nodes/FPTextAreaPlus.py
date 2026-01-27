@@ -26,7 +26,7 @@ class FPTextAreaPlus:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("text",)
     FUNCTION = "execute"
-    CATEGORY = "utils/primitive"
+    CATEGORY = "AK/Folded Prompts"
     OUTPUT_NODE = False
 
     def execute(self, before_text=None, text="", after_text=None):

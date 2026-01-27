@@ -40,7 +40,7 @@ class FPTextCleanAndSplitt:
     RETURN_TYPES = ("STRING", "LIST", "STRING")
     RETURN_NAMES = ("cleaned_text", "ar_list", "impact_wildcard")
     FUNCTION = "execute"
-    CATEGORY = "prompt/utils"
+    CATEGORY = "AK/Folded Prompts"
     OUTPUT_NODE = False
 
     @classmethod
