@@ -130,6 +130,10 @@ class FPTextCleanAndSplitt:
 
                 block_lines = []
 
+                tail = tail.strip()
+                if tail:
+                    block_lines.append(tail)
+
                 if "</>" in tail:
                     before, _sep, _after = tail.partition("</>")
                     before = before.strip()
