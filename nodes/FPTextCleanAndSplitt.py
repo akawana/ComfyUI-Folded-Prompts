@@ -1,6 +1,59 @@
 import re
 import os
 import json
+from collections import defaultdict
+
+_AR_BLOCK_RE = re.compile(r"<AR([1-5])>(.*?)</>", re.DOTALL | re.IGNORECASE)
+_AR_OPEN_RE = re.compile(r"<AR([1-5])>", re.IGNORECASE)
+_AR_CLOSE_RE = re.compile(r"</>", re.IGNORECASE)
+
+
+def build_full_text(before_text: str | None, text: str | None, after_text: str | None) -> str:
+    parts = []
+    if before_text:
+        parts.append(str(before_text).rstrip())
+    if text:
+        parts.append(str(text))
+    if after_text:
+        parts.append(str(after_text).lstrip())
+    return "\n".join([p for p in parts if p is not None and str(p) != ""])
+
+
+def get_uncommented_text(full_text: str, comment_prefix: str) -> str:
+    if not full_text:
+        return ""
+    lines = full_text.splitlines()
+    kept = []
+    for raw_line in lines:
+        stripped = raw_line.lstrip()
+        if comment_prefix and stripped.startswith(comment_prefix):
+            continue
+        kept.append(raw_line)
+    return "\n".join(kept)
+
+
+def make_all_expt_comments(uncommented_text: str) -> str:
+    if not uncommented_text:
+        return ""
+    s = _AR_OPEN_RE.sub("", uncommented_text)
+    s = _AR_CLOSE_RE.sub("", s)
+    return s
+
+
+def make_all_expt_areas(uncommented_text: str) -> str:
+    if not uncommented_text:
+        return ""
+    return re.sub(_AR_BLOCK_RE, "", uncommented_text).strip()
+
+
+def extract_ar_blocks(text: str) -> dict[str, list[str]]:
+    ar_contents = {f"AR{i}": [] for i in range(1, 6)}
+    for m in _AR_BLOCK_RE.finditer(text):
+        tag_num = int(m.group(1))
+        content = (m.group(2) or "").strip()
+        if content:
+            ar_contents[f"AR{tag_num}"].append(content)
+    return ar_contents
 
 
 class FPTextCleanAndSplitt:
@@ -37,24 +90,22 @@ class FPTextCleanAndSplitt:
             },
         }
 
-    RETURN_TYPES = ("STRING", "LIST", "STRING")
-    RETURN_NAMES = ("cleaned_text", "ar_list", "impact_wildcard")
+    RETURN_TYPES = ("STRING", "STRING", "LIST", "STRING")
+    RETURN_NAMES = ("all_expt_comments", "all_expt_areas", "ar_list", "impact_wildcard")
     FUNCTION = "execute"
     CATEGORY = "AK/Folded Prompts"
     OUTPUT_NODE = False
 
     @classmethod
     def IS_CHANGED(cls, before_text=None, text="", after_text=None, **kwargs):
-        before_text = before_text or ""
-        text = text or ""
-        after_text = after_text or ""
-
-        full = "\n\n".join([s for s in (before_text, text, after_text) if s != ""])
+        full = build_full_text(before_text or "", text or "", after_text or "")
+        prefix = cls().get_comment_prefix()
+        uncommented = get_uncommented_text(full, prefix)
 
         cleaned_for_hash = re.sub(
             r"<AR([1-5])>(?:(?!</>).)*</>",
             "",
-            full,
+            uncommented,
             flags=re.IGNORECASE | re.DOTALL,
         )
 
@@ -66,118 +117,18 @@ class FPTextCleanAndSplitt:
         return hash(cleaned_for_hash)
 
     def execute(self, before_text=None, text="", after_text=None):
-        parts = []
-        if before_text:
-            parts.append(before_text.rstrip())
-        if text:
-            parts.append(text)
-        if after_text:
-            parts.append(after_text.lstrip())
-
-        full_text = "\n".join(filter(None, parts))
+        full_text = build_full_text(before_text, text, after_text)
 
         if not full_text.strip():
-            return ("", [None] * 5, "")
+            return ("", "", [None] * 5, "")
 
         prefix = self.get_comment_prefix()
-        lines = full_text.splitlines()
+        uncommented_text = get_uncommented_text(full_text, prefix)
 
-        cleaned_lines = []
-        ar_contents = {f"AR{i}": [] for i in range(1, 6)}
-        i = 0
+        ar_contents = extract_ar_blocks(uncommented_text)
 
-        while i < len(lines):
-            raw_line = lines[i]
-            stripped = raw_line.lstrip()
-            line = raw_line.strip()
-
-            if prefix and stripped.startswith(prefix):
-                i += 1
-                continue
-
-            inline_matches = list(
-                re.finditer(r"<AR([1-5])>(.*?)</>", raw_line, re.IGNORECASE)
-            )
-            if inline_matches:
-                for m in inline_matches:
-                    tag_num = int(m.group(1))
-                    content = m.group(2).strip()
-                    if content:
-                        ar_contents[f"AR{tag_num}"].append(content)
-
-                remaining = re.sub(
-                    r"<AR([1-5])>.*?</>", "", raw_line, flags=re.IGNORECASE
-                )
-                remaining = remaining.replace("\r\n", "\n").rstrip("\n")
-
-                remaining = re.sub(r"\s*,\s*", ", ", remaining)
-                remaining = re.sub(r"(?:,\s*){2,}", ", ", remaining)
-                remaining = re.sub(r"(?:,\s*)+$", "", remaining).rstrip()
-
-                if remaining:
-                    if not remaining.endswith(","):
-                        remaining += ","
-                        remaining += " "
-                    cleaned_lines.append(remaining)
-
-                i += 1
-                continue
-
-            match = re.match(r"<AR([1-5])>(.*)$", line, re.IGNORECASE)
-            if match:
-                tag_num = int(match.group(1))
-                tail = match.group(2)
-
-                block_lines = []
-
-                tail = tail.strip()
-                if tail:
-                    block_lines.append(tail)
-
-                if "</>" in tail:
-                    before, _sep, _after = tail.partition("</>")
-                    before = before.strip()
-                    if before:
-                        block_lines.append(before)
-                    content = "\n".join(block_lines).rstrip()
-                    if content:
-                        ar_contents[f"AR{tag_num}"].append(content)
-                    i += 1
-                    continue
-
-                i += 1
-                while i < len(lines):
-                    inner_raw = lines[i]
-                    inner_stripped = inner_raw.lstrip()
-                    inner_line = inner_raw.strip()
-
-                    if "</>" in inner_line:
-                        before, _sep, _after = inner_raw.partition("</>")
-                        before = before.strip()
-                        if before:
-                            block_lines.append(before)
-                        i += 1
-                        break
-
-                    if prefix and inner_stripped.startswith(prefix):
-                        i += 1
-                        continue
-
-                    block_lines.append(inner_raw.rstrip("\n"))
-                    i += 1
-
-                content = "\n".join(block_lines).rstrip()
-                if content:
-                    ar_contents[f"AR{tag_num}"].append(content)
-                continue
-
-            if line:
-                cleaned_lines.append(raw_line.rstrip())
-            i += 1
-
-        cleaned_text = "\n".join(
-            [ln.rstrip().replace("\r\n", "\n") for ln in cleaned_lines]
-        ).strip()
+        all_expt_comments = make_all_expt_comments(uncommented_text).strip()
+        all_expt_areas = make_all_expt_areas(uncommented_text).strip()
 
         ar_list = []
         for n in range(1, 6):
@@ -230,8 +181,7 @@ class FPTextCleanAndSplitt:
             for line in impact_lines:
                 if line.startswith("[AR") and "]" in line:
                     tag, rest = line.split("]", 1)
-                    rest = rest or ""
-                    rest = rest.strip()
+                    rest = (rest or "").strip()
                     if rest:
                         new_line = f"{tag}] {bt} {rest} {at}".rstrip()
                     else:
@@ -243,7 +193,7 @@ class FPTextCleanAndSplitt:
 
         impact_wildcard = "\n".join(impact_lines)
 
-        return (cleaned_text, ar_list, impact_wildcard)
+        return (all_expt_comments, all_expt_areas, ar_list, impact_wildcard)
 
     def get_comment_prefix(self):
         try:
