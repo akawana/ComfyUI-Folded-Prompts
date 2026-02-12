@@ -7,6 +7,10 @@ _AR_BLOCK_RE = re.compile(r"<AR([1-5])>(.*?)</>", re.DOTALL | re.IGNORECASE)
 _AR_OPEN_RE = re.compile(r"<AR([1-5])>", re.IGNORECASE)
 _AR_CLOSE_RE = re.compile(r"</>", re.IGNORECASE)
 
+def collapse_empty_lines(text: str) -> str:
+    text = re.sub(r'\n\s*\n+', '\n\n', text)
+    text = re.sub(r'^\s*\n+', '', text)
+    return text
 
 def build_full_text(before_text: str | None, text: str | None, after_text: str | None) -> str:
     parts = []
@@ -37,13 +41,13 @@ def make_all_expt_comments(uncommented_text: str) -> str:
         return ""
     s = _AR_OPEN_RE.sub("", uncommented_text)
     s = _AR_CLOSE_RE.sub("", s)
-    return s
+    return collapse_empty_lines(s)
 
 
 def make_all_expt_areas(uncommented_text: str) -> str:
     if not uncommented_text:
         return ""
-    return re.sub(_AR_BLOCK_RE, "", uncommented_text).strip()
+    return collapse_empty_lines(re.sub(_AR_BLOCK_RE, "", uncommented_text))
 
 
 def extract_ar_blocks(text: str) -> dict[str, list[str]]:
@@ -102,12 +106,15 @@ class FPTextCleanAndSplitt:
         prefix = cls().get_comment_prefix()
         uncommented = get_uncommented_text(full, prefix)
 
-        cleaned_for_hash = re.sub(
-            r"<AR([1-5])>(?:(?!</>).)*</>",
-            "",
-            uncommented,
-            flags=re.IGNORECASE | re.DOTALL,
-        )
+        # cleaned_for_hash = re.sub(
+        #     r"<AR([1-5])>(?:(?!</>).)*</>",
+        #     "",
+        #     uncommented,
+        #     flags=re.IGNORECASE | re.DOTALL,
+        # )
+        # cleaned_for_hash = _AR_BLOCK_RE.sub("", uncommented)
+        cleaned_for_hash = make_all_expt_comments(uncommented)
+
 
         cleaned_for_hash = cleaned_for_hash.replace("\r\n", "\n").replace("\r", "\n")
         cleaned_for_hash = re.sub(r"\s*,\s*", ", ", cleaned_for_hash)
@@ -127,8 +134,8 @@ class FPTextCleanAndSplitt:
 
         ar_contents = extract_ar_blocks(uncommented_text)
 
-        all_expt_comments = make_all_expt_comments(uncommented_text).strip()
-        all_expt_areas = make_all_expt_areas(uncommented_text).strip()
+        all_expt_comments = make_all_expt_comments(uncommented_text)
+        all_expt_areas = make_all_expt_areas(uncommented_text)
 
         ar_list = []
         for n in range(1, 6):
