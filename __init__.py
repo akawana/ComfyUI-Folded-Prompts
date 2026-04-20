@@ -1,26 +1,20 @@
-# Frontend extension (JS)
 WEB_DIRECTORY = "./js"
 
-# Python nodes
-from .nodes.FPTextCleanAndSplitt import NODE_CLASS_MAPPINGS as FPTSTATE_MAPPINGS
-from .nodes.FPTextCleanAndSplitt import NODE_DISPLAY_NAME_MAPPINGS as FPTSTATE_DISPLAY
+import importlib
 
-from .nodes.FPFoldedPrompts import NODE_CLASS_MAPPINGS as FPFSTATE_MAPPINGS
-from .nodes.FPFoldedPrompts import NODE_DISPLAY_NAME_MAPPINGS as FPFSTATE_DISPLAY
+_NODE_MODULES = [
+    "FPTextCleanAndSplitt",
+    "FPFoldedPrompts",
+    "FPTextAreaPlus",
+    "FPTabbedTextArea",
+]
 
-from .nodes.FPTextAreaPlus import NODE_CLASS_MAPPINGS as FPTPSTATE_MAPPINGS
-from .nodes.FPTextAreaPlus import NODE_DISPLAY_NAME_MAPPINGS as FPTPSTATE_DISPLAY
+NODE_CLASS_MAPPINGS = {}
+NODE_DISPLAY_NAME_MAPPINGS = {}
 
-NODE_CLASS_MAPPINGS = {
-    **FPFSTATE_MAPPINGS,
-    **FPTSTATE_MAPPINGS,
-    **FPTPSTATE_MAPPINGS,
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    **FPFSTATE_DISPLAY,
-    **FPTSTATE_DISPLAY,
-    **FPTPSTATE_DISPLAY,
-}
+for _mod_name in _NODE_MODULES:
+    _mod = importlib.import_module(f".nodes.{_mod_name}", package=__name__)
+    NODE_CLASS_MAPPINGS.update(_mod.NODE_CLASS_MAPPINGS)
+    NODE_DISPLAY_NAME_MAPPINGS.update(_mod.NODE_DISPLAY_NAME_MAPPINGS)
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]

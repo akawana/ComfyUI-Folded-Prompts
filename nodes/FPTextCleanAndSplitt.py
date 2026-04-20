@@ -15,13 +15,12 @@ def collapse_empty_lines(text: str) -> str:
 def build_full_text(before_text: str | None, text: str | None, after_text: str | None) -> str:
     parts = []
     if before_text:
-        parts.append(str(before_text).rstrip())
+        parts.append(str(before_text))
     if text:
         parts.append(str(text))
     if after_text:
-        parts.append(str(after_text).lstrip())
+        parts.append(str(after_text))
     return "\n".join([p for p in parts if p is not None and str(p) != ""])
-
 
 def get_uncommented_text(full_text: str, comment_prefix: str) -> str:
     if not full_text:
@@ -32,7 +31,13 @@ def get_uncommented_text(full_text: str, comment_prefix: str) -> str:
         stripped = raw_line.lstrip()
         if comment_prefix and stripped.startswith(comment_prefix):
             continue
-        kept.append(raw_line)
+        # обрезать inline-комментарий в конце строки
+        if comment_prefix:
+            idx = raw_line.find(comment_prefix)
+            if idx != -1:
+                raw_line = raw_line[:idx].rstrip()
+        if raw_line or True:  # сохраняем пустые строки
+            kept.append(raw_line)
     return "\n".join(kept)
 
 
