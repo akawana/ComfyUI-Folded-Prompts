@@ -4,8 +4,6 @@ const NODE_CLASS = "FPTabbedTextArea";
 const STORE_KEY = "fp_tabbed_text_area";
 const DATA_WIDGET = "node_data_json";
 const DEFAULT_TABS = "First";
-const DEFAULT_MODE = "separate_tabs";
-const MAX_TAB_OUTPUTS = 9;
 
 // ── graph.extra storage ──────────────────────────────────────────────────────
 
@@ -15,7 +13,7 @@ function getNodeStore(nodeId) {
     if (!g.extra) g.extra = {};
     if (!g.extra[STORE_KEY]) g.extra[STORE_KEY] = {};
     if (!g.extra[STORE_KEY][nodeId]) {
-        g.extra[STORE_KEY][nodeId] = { active_tab: null, texts: {}, tab_order: [], mode: DEFAULT_MODE };
+        g.extra[STORE_KEY][nodeId] = { active_tab: null, texts: {} };
     }
     return g.extra[STORE_KEY][nodeId];
 }
@@ -42,63 +40,6 @@ function parseTabs(raw) {
     }
     if (result.length === 0) result.push("First");
     return result;
-}
-
-// ── output visibility ────────────────────────────────────────────────────────
-
-// We keep a shadow copy of all 9 tab output definitions on the node itself
-// so we can restore them after hiding without losing link info.
-function _ensureTabOutputsShadow(node) {
-    if (node.__fp_tab_outputs_shadow) return;
-    // Build shadow from current outputs (indices 1..9)
-    node.__fp_tab_outputs_shadow = [];
-    for (let i = 0; i < MAX_TAB_OUTPUTS; i++) {
-        const outIdx = i + 1;
-        const out = node.outputs?.[outIdx];
-        node.__fp_tab_outputs_shadow.push(out
-            ? { name: out.name, type: out.type }
-            : { name: `tab${i + 1}`, type: "STRING" }
-        );
-    }
-}
-
-function applyOutputVisibility(node, mode, tabCount) {
-    if (!node.outputs) return;
-    _ensureTabOutputsShadow(node);
-
-    const wantVisible = mode === "separate_outputs";
-
-    // Current tab outputs in node.outputs (indices 1..N where N may vary)
-    // Strategy: always ensure exactly the right set is present.
-    // Remove all tab outputs first (from the end to avoid index shifting).
-    // Then re-add the ones we want.
-
-    // Count how many tab outputs are currently appended (after index 0)
-    const currentTabCount = node.outputs.length - 1;
-
-    // Remove from end
-    for (let i = currentTabCount - 1; i >= 0; i--) {
-        // disconnect links before removing
-        const outIdx = i + 1;
-        if (node.outputs[outIdx]) {
-            const links = node.outputs[outIdx].links;
-            if (links && links.length > 0) {
-                [...links].forEach(linkId => {
-                    try { app.graph.removeLink(linkId); } catch(_) {}
-                });
-            }
-        }
-        node.removeOutput(i + 1);
-    }
-
-    // Re-add the ones we want visible
-    const visibleCount = wantVisible ? Math.min(tabCount, MAX_TAB_OUTPUTS) : 0;
-    for (let i = 0; i < visibleCount; i++) {
-        const shadow = node.__fp_tab_outputs_shadow[i];
-        node.addOutput(shadow.name, shadow.type);
-    }
-
-    node.setDirtyCanvas(true, true);
 }
 
 // ── hide the data widget ─────────────────────────────────────────────────────
@@ -142,7 +83,6 @@ function buildTabbedWidget(node) {
     const nodeId = String(node.id);
     const store = getNodeStore(nodeId);
     const tabs = parseTabs(node.properties?.tabs ?? DEFAULT_TABS);
-    const mode = store.mode || DEFAULT_MODE;
 
     if (!store.active_tab || !tabs.includes(store.active_tab)) {
         store.active_tab = tabs[0];
@@ -153,13 +93,10 @@ function buildTabbedWidget(node) {
         newTexts[t] = store.texts[t] ?? "";
     }
     store.texts = newTexts;
-    store.tab_order = tabs;
     saveNodeStore(nodeId, store);
     syncWidget(node);
 
-    applyOutputVisibility(node, mode, tabs.length);
-
-    // If widget already exists, just rebuild tabs in-place
+    // If widget already exists, just rebuild its contents in-place
     const existing = node.widgets?.find(w => w.name === "__fp_tabs__");
     if (existing && existing.__fp_tabBar && existing.__fp_textarea) {
         _populateTabs(existing.__fp_tabBar, existing.__fp_textarea, tabs, store, nodeId, node);
@@ -278,17 +215,8 @@ function _populateTabs(tabBar, textarea, tabs, store, nodeId, node) {
 function initNode(node) {
     if (!node.properties) node.properties = {};
     if (node.properties.tabs === undefined) node.properties.tabs = DEFAULT_TABS;
-    if (node.properties.mode === undefined) node.properties.mode = DEFAULT_MODE;
-
-    // sync mode from properties into store
-    const store = getNodeStore(String(node.id));
-    if (store) {
-        store.mode = node.properties.mode || DEFAULT_MODE;
-        saveNodeStore(String(node.id), store);
-    }
 
     hideDataWidget(node);
-
     buildTabbedWidget(node);
 
     const origOnPropertyChanged = node.onPropertyChanged;
@@ -296,16 +224,6 @@ function initNode(node) {
         origOnPropertyChanged?.apply(this, arguments);
         if (name === "tabs") {
             buildTabbedWidget(node);
-        }
-        if (name === "mode") {
-            const s = getNodeStore(String(node.id));
-            if (s) {
-                s.mode = value || DEFAULT_MODE;
-                saveNodeStore(String(node.id), s);
-                syncWidget(node);
-                const tabs = parseTabs(node.properties?.tabs ?? DEFAULT_TABS);
-                applyOutputVisibility(node, s.mode, tabs.length);
-            }
         }
     };
 }
@@ -315,22 +233,9 @@ function initNode(node) {
 app.registerExtension({
     name: "FP.TabbedTextArea",
 
-    async beforeRegisterNodeDef(nodeType, nodeData) {
-        if (nodeData.name !== NODE_CLASS) return;
-
-        const origOnNodeCreated = nodeType.prototype.onNodeCreated;
-        nodeType.prototype.onNodeCreated = function () {
-            origOnNodeCreated?.apply(this, arguments);
-            // Register mode as enum so Properties panel shows a dropdown
-            this.addProperty("mode", DEFAULT_MODE, "enum", {
-                values: ["separate_tabs", "chained_tabs", "separate_outputs"],
-            });
-            this.addProperty("tabs", DEFAULT_TABS, "string");
-        };
-    },
-
     async nodeCreated(node) {
         if (node?.comfyClass !== NODE_CLASS) return;
+        // Set a flag — loadedGraphNode will cancel this if it fires first
         node.__fp_tabs_init_pending = true;
         queueMicrotask(() => {
             if (!node.__fp_tabs_init_pending) return;
@@ -341,6 +246,7 @@ app.registerExtension({
 
     loadedGraphNode(node) {
         if (node?.comfyClass !== NODE_CLASS) return;
+        // graph.extra is already restored here, so we read correct data
         node.__fp_tabs_init_pending = false;
         initNode(node);
     },

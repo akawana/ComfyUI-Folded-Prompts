@@ -2,6 +2,8 @@ import json
 
 from comfy_api.latest import ComfyExtension, io
 
+MAX_TAB_OUTPUTS = 9
+
 
 class FPTabbedTextArea(io.ComfyNode):
     @classmethod
@@ -11,10 +13,12 @@ class FPTabbedTextArea(io.ComfyNode):
             display_name="FP Tabbed Text Area",
             category="FP/text",
             description=(
-                "A text node with multiple tabs. Each tab has its own text area. "
-                "The active tab's text is combined with before_text and after_text "
-                "and sent to the output. "
-                "Configure tabs via node Properties → tabs (comma-separated names)."
+                "A text node with multiple tabs. "
+                "Mode is controlled via node Properties → mode.\n"
+                "• Separate Tabs: active tab text → output 'text'\n"
+                "• Chained Tabs: all tabs joined with newline → output 'text'\n"
+                "• Separate Outputs: each tab → its own output tab1..tab9; "
+                "'text' outputs all tabs chained."
             ),
             inputs=[
                 io.String.Input(
@@ -29,7 +33,7 @@ class FPTabbedTextArea(io.ComfyNode):
                     multiline=True,
                     force_input=True,
                     optional=True,
-                    tooltip="Text prepended to the active tab text.",
+                    tooltip="Text prepended to the output.",
                 ),
                 io.String.Input(
                     "after_text",
@@ -37,11 +41,15 @@ class FPTabbedTextArea(io.ComfyNode):
                     multiline=True,
                     force_input=True,
                     optional=True,
-                    tooltip="Text appended to the active tab text.",
+                    tooltip="Text appended to the output.",
                 ),
             ],
             outputs=[
                 io.String.Output(display_name="text"),
+                *[
+                    io.String.Output(display_name=f"tab{i+1}")
+                    for i in range(MAX_TAB_OUTPUTS)
+                ],
             ],
         )
 
@@ -57,16 +65,38 @@ class FPTabbedTextArea(io.ComfyNode):
         except Exception:
             data = {}
 
+        mode = str(data.get("mode", "separate_tabs"))
         active_tab = str(data.get("active_tab", ""))
         texts = data.get("texts", {})
+        tab_order = data.get("tab_order", [])
 
-        tab_text = ""
-        if active_tab and isinstance(texts, dict):
-            tab_text = str(texts.get(active_tab, ""))
+        if not isinstance(texts, dict):
+            texts = {}
+        if not isinstance(tab_order, list) or not tab_order:
+            tab_order = list(texts.keys())
 
-        result = (before_text or "") + tab_text + (after_text or "")
+        before = before_text or ""
+        after = after_text or ""
 
-        return io.NodeOutput(result)
+        # ── main "text" output ───────────────────────────────────────────────
+        if mode == "separate_tabs":
+            tab_text = str(texts.get(active_tab, "")) if active_tab else ""
+            main_text = before + "\n" + tab_text + "\n" + after
+        else:
+            # chained or separate_outputs — join all tabs
+            parts = [str(texts.get(t, "")) for t in tab_order if t in texts]
+            main_text = before + "\n".join(parts) + after
+
+        # ── per-tab outputs (tab1..tab9) ─────────────────────────────────────
+        tab_outputs = []
+        for i in range(MAX_TAB_OUTPUTS):
+            if i < len(tab_order) and mode == "separate_outputs":
+                tab_name = tab_order[i]
+                tab_outputs.append(before + "\n" + str(texts.get(tab_name, "")) + "\n" + after)
+            else:
+                tab_outputs.append("")
+
+        return io.NodeOutput(main_text, *tab_outputs)
 
 
 class FPTabbedTextAreaExtension(ComfyExtension):
