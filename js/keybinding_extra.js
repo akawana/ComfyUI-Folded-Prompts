@@ -94,7 +94,8 @@ function parsePowered(tag) {
 
 function makePowered(inner, value) {
     const rounded = Math.round(value * 100) / 100;
-    return `(${inner}: ${rounded.toFixed(2)})`;
+    const str = rounded.toFixed(2).replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+    return `(${inner}: ${str})`;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
