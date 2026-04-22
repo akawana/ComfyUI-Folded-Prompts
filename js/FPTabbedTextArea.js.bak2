@@ -137,37 +137,38 @@ function applyOutputVisibility(node, mode, tabCount) {
 
 // ── ensure hidden data widgets exist ─────────────────────────────────────────
 
-function collapseWidget(w) {
-    if (!w) return;
-    w.computeSize = () => [0, -4];
-    w.serializeValue = async () => w.value;
-    if (w.inputEl) {
-        w.inputEl.style.cssText = "display:none;height:0;min-height:0;max-height:0;padding:0;margin:0;overflow:hidden;";
-    }
-}
-
-function getInternalWidgetNames() {
-    return [
-        META_WIDGET,
-        TEXT_WIDGET,
-        ...Array.from({ length: MAX_TAB_OUTPUTS }, (_, i) => `${TAB_WIDGET_PFX}${i}__`),
-    ];
-}
-
 function ensureHiddenWidgets(node) {
-    for (const name of getInternalWidgetNames()) {
-        const w = node.widgets?.find(w => w.name === name);
-        collapseWidget(w);
-    }
-    // Re-run on every draw to catch widgets created late by V3
-    const origOnDrawBackground = node.onDrawBackground;
-    node.onDrawBackground = function(ctx) {
-        origOnDrawBackground?.apply(this, arguments);
-        for (const name of getInternalWidgetNames()) {
-            const w = this.widgets?.find(w => w.name === name);
-            collapseWidget(w);
+    function ensureWidget(name, defaultValue) {
+        let w = node.widgets?.find(w => w.name === name);
+        if (!w) {
+            w = node.addWidget("text", name, defaultValue, () => {});
         }
-    };
+        // visually collapse — do NOT set type="hidden" (breaks serialization)
+        w.computeSize = () => [0, -4];
+        w.serializeValue = async () => w.value;
+        if (w.inputEl) {
+            w.inputEl.style.cssText = "display:none;height:0;min-height:0;max-height:0;padding:0;margin:0;overflow:hidden;";
+        }
+        return w;
+    }
+
+    // meta widget (already defined in Python schema)
+    const metaW = node.widgets?.find(w => w.name === META_WIDGET);
+    if (metaW) {
+        metaW.computeSize = () => [0, -4];
+        metaW.serializeValue = async () => metaW.value;
+        if (metaW.inputEl) {
+            metaW.inputEl.style.cssText = "display:none;height:0;min-height:0;max-height:0;padding:0;margin:0;overflow:hidden;";
+        }
+    }
+
+    // __fp_text__
+    ensureWidget(TEXT_WIDGET, "");
+
+    // __fp_tab_0__ .. __fp_tab_8__
+    for (let i = 0; i < MAX_TAB_OUTPUTS; i++) {
+        ensureWidget(`${TAB_WIDGET_PFX}${i}__`, "");
+    }
 }
 
 // ── remove existing DOM widget ───────────────────────────────────────────────

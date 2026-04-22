@@ -1,4 +1,4 @@
-import json
+import hashlib
 
 from comfy_api.latest import ComfyExtension, io
 
@@ -25,8 +25,23 @@ class FPTabbedTextArea(io.ComfyNode):
                     "node_data_json",
                     default="",
                     multiline=False,
-                    tooltip="Internal: stores tabs data. Managed by JS.",
+                    tooltip="Internal metadata (mode/active_tab/tab_order). Managed by JS.",
                 ),
+                io.String.Input(
+                    "__fp_text__",
+                    default="",
+                    multiline=False,
+                    tooltip="Internal: combined text output. Managed by JS.",
+                ),
+                *[
+                    io.String.Input(
+                        f"__fp_tab_{i}__",
+                        default="",
+                        multiline=False,
+                        tooltip=f"Internal: tab{i+1} text. Managed by JS.",
+                    )
+                    for i in range(MAX_TAB_OUTPUTS)
+                ],
                 io.String.Input(
                     "before_text",
                     default="",
@@ -54,47 +69,30 @@ class FPTabbedTextArea(io.ComfyNode):
         )
 
     @classmethod
+    def fingerprint_inputs(cls, __fp_text__: str = "", **kwargs) -> str:
+        parts = [__fp_text__]
+        for i in range(MAX_TAB_OUTPUTS):
+            parts.append(kwargs.get(f"__fp_tab_{i}__", "") or "")
+        return hashlib.sha256("\n".join(parts).encode()).hexdigest()
+
+    @classmethod
     def execute(
         cls,
-        node_data_json: str,
+        node_data_json: str = "",
+        __fp_text__: str = "",
         before_text: str = "",
         after_text: str = "",
+        **kwargs,
     ) -> io.NodeOutput:
-        try:
-            data = json.loads(node_data_json or "{}")
-        except Exception:
-            data = {}
-
-        mode = str(data.get("mode", "separate_tabs"))
-        active_tab = str(data.get("active_tab", ""))
-        texts = data.get("texts", {})
-        tab_order = data.get("tab_order", [])
-
-        if not isinstance(texts, dict):
-            texts = {}
-        if not isinstance(tab_order, list) or not tab_order:
-            tab_order = list(texts.keys())
-
         before = before_text or ""
-        after = after_text or ""
+        after  = after_text or ""
 
-        # ── main "text" output ───────────────────────────────────────────────
-        if mode == "separate_tabs":
-            tab_text = str(texts.get(active_tab, "")) if active_tab else ""
-            main_text = before + "\n" + tab_text + "\n" + after
-        else:
-            # chained or separate_outputs — join all tabs
-            parts = [str(texts.get(t, "")) for t in tab_order if t in texts]
-            main_text = before + "\n".join(parts) + after
+        main_text = before + __fp_text__ + after
 
-        # ── per-tab outputs (tab1..tab9) ─────────────────────────────────────
         tab_outputs = []
         for i in range(MAX_TAB_OUTPUTS):
-            if i < len(tab_order) and mode == "separate_outputs":
-                tab_name = tab_order[i]
-                tab_outputs.append(before + "\n" + str(texts.get(tab_name, "")) + "\n" + after)
-            else:
-                tab_outputs.append("")
+            raw = kwargs.get(f"__fp_tab_{i}__", "") or ""
+            tab_outputs.append(before + raw + after if raw else "")
 
         return io.NodeOutput(main_text, *tab_outputs)
 
