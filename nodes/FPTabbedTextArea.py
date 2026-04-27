@@ -1,11 +1,14 @@
 import hashlib
 
+from comfy_execution.graph import ExecutionBlocker
 from comfy_api.latest import ComfyExtension, io
 
 MAX_TAB_OUTPUTS = 9
 
 
 class FPTabbedTextArea(io.ComfyNode):
+
+    _prev_tab_hashes: dict = {}  # { node_unique_id: { tab_index: hash } }
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
@@ -59,6 +62,7 @@ class FPTabbedTextArea(io.ComfyNode):
                     tooltip="Text appended to the output.",
                 ),
             ],
+            hidden=[io.Hidden.unique_id],
             outputs=[
                 io.String.Output(display_name="text"),
                 *[
@@ -84,15 +88,33 @@ class FPTabbedTextArea(io.ComfyNode):
         after_text: str = "",
         **kwargs,
     ) -> io.NodeOutput:
+        unique_id = str(cls.hidden.unique_id) if cls.hidden else ""
+        # print(f"[FPTabbedTextArea] execute: __fp_text__={__fp_text__!r:.40}")
         before = before_text or ""
         after  = after_text or ""
 
-        main_text = before + __fp_text__ + after
+        main_text = "\n".join(p for p in [before, __fp_text__, after] if p)
+
+        prev = cls._prev_tab_hashes.get(unique_id, {})
+        curr = {}
 
         tab_outputs = []
         for i in range(MAX_TAB_OUTPUTS):
             raw = kwargs.get(f"__fp_tab_{i}__", "") or ""
-            tab_outputs.append(before + raw + after if raw else "")
+            tab_hash = hashlib.md5(raw.encode()).hexdigest()
+            curr[i] = tab_hash
+
+            if raw:
+                if tab_hash == prev.get(i):
+                    # print(f"[FPTabbedTextArea] tab{i+1} unchanged → ExecutionBlocker")
+                    tab_outputs.append(ExecutionBlocker(None))
+                else:
+                    # print(f"[FPTabbedTextArea] tab{i+1} changed → passing value")
+                    tab_outputs.append("\n".join(p for p in [before, raw, after] if p))
+            else:
+                tab_outputs.append(ExecutionBlocker(None))
+
+        cls._prev_tab_hashes[unique_id] = curr
 
         return io.NodeOutput(main_text, *tab_outputs)
 

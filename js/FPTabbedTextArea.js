@@ -1,12 +1,12 @@
 import { app } from "../../scripts/app.js";
 
-const NODE_CLASS      = "FPTabbedTextArea";
-const STORE_KEY       = "fp_tabbed_text_area";
-const META_WIDGET     = "node_data_json";   // stores mode/active_tab/tab_order — NO texts
-const TEXT_WIDGET     = "__fp_text__";      // output "text"
-const TAB_WIDGET_PFX  = "__fp_tab_";        // __fp_tab_0__ .. __fp_tab_8__
-const DEFAULT_TABS    = "First";
-const DEFAULT_MODE    = "separate_tabs";
+const NODE_CLASS = "FPTabbedTextArea";
+const STORE_KEY = "fp_tabbed_text_area";
+const META_WIDGET = "node_data_json";   // stores mode/active_tab/tab_order — NO texts
+const TEXT_WIDGET = "__fp_text__";      // output "text"
+const TAB_WIDGET_PFX = "__fp_tab_";        // __fp_tab_0__ .. __fp_tab_8__
+const DEFAULT_TABS = "First";
+const DEFAULT_MODE = "separate_tabs";
 const MAX_TAB_OUTPUTS = 9;
 
 // ── graph.extra storage (UI state: texts + active_tab) ───────────────────────
@@ -49,27 +49,40 @@ function parseTabs(raw) {
 // ── compute combined texts (what Python will receive) ────────────────────────
 
 function computeTextOutput(store, before, after) {
-    const mode      = store.mode || DEFAULT_MODE;
+    const mode = store.mode || DEFAULT_MODE;
     const tab_order = store.tab_order || [];
-    const texts     = store.texts || {};
+    const texts = store.texts || {};
+
+    const joinBA = (text) => {
+        const parts = [];
+        if (before) parts.push(before);
+        if (text) parts.push(text);
+        if (after) parts.push(after);
+        return parts.join("\n");
+    };
 
     if (mode === "separate_tabs") {
         const tab_text = texts[store.active_tab] ?? "";
-        return (before || "") + tab_text + (after || "");
+        return joinBA(tab_text);
     } else {
-        const parts = tab_order.map(t => texts[t] ?? "");
-        return (before || "") + parts.join("\n") + (after || "");
+        const joined = tab_order.map(t => texts[t] ?? "").join("\n");
+        return joinBA(joined);
     }
 }
 
 function computeTabOutput(store, tabIndex, before, after) {
     const tab_order = store.tab_order || [];
-    const texts     = store.texts || {};
-    const mode      = store.mode || DEFAULT_MODE;
+    const texts = store.texts || {};
+    const mode = store.mode || DEFAULT_MODE;
     if (mode !== "separate_outputs") return "";
     const name = tab_order[tabIndex];
     if (!name) return "";
-    return (before || "") + (texts[name] ?? "") + (after || "");
+    const text = texts[name] ?? "";
+    const parts = [];
+    if (before) parts.push(before);
+    if (text) parts.push(text);
+    if (after) parts.push(after);
+    return parts.join("\n");
 }
 
 // ── sync all hidden widgets from store ───────────────────────────────────────
@@ -82,9 +95,9 @@ function syncAllWidgets(node) {
     const metaW = node.widgets?.find(w => w.name === META_WIDGET);
     if (metaW) {
         metaW.value = JSON.stringify({
-            mode:       store.mode,
+            mode: store.mode,
             active_tab: store.active_tab,
-            tab_order:  store.tab_order,
+            tab_order: store.tab_order,
         });
     }
 
@@ -99,7 +112,7 @@ function syncAllWidgets(node) {
     }
 }
 
-// ── output visibility ────────────────────────────────────────────────────────
+
 
 function applyOutputVisibility(node, mode, tabCount) {
     if (!node.outputs) return;
@@ -121,7 +134,7 @@ function applyOutputVisibility(node, mode, tabCount) {
         const out = node.outputs[outIdx];
         if (out?.links?.length) {
             [...out.links].forEach(linkId => {
-                try { app.graph.removeLink(linkId); } catch(_) {}
+                try { app.graph.removeLink(linkId); } catch (_) { }
             });
         }
         node.removeOutput(outIdx);
@@ -139,8 +152,12 @@ function applyOutputVisibility(node, mode, tabCount) {
 
 function collapseWidget(w) {
     if (!w) return;
+    w.hidden = true;
     w.computeSize = () => [0, -4];
     w.serializeValue = async () => w.value;
+    if (w.element) {
+        w.element.style.cssText = "display:none;height:0;min-height:0;max-height:0;padding:0;margin:0;overflow:hidden;";
+    }
     if (w.inputEl) {
         w.inputEl.style.cssText = "display:none;height:0;min-height:0;max-height:0;padding:0;margin:0;overflow:hidden;";
     }
@@ -155,19 +172,35 @@ function getInternalWidgetNames() {
 }
 
 function ensureHiddenWidgets(node) {
-    for (const name of getInternalWidgetNames()) {
-        const w = node.widgets?.find(w => w.name === name);
-        collapseWidget(w);
-    }
-    // Re-run on every draw to catch widgets created late by V3
-    const origOnDrawBackground = node.onDrawBackground;
-    node.onDrawBackground = function(ctx) {
-        origOnDrawBackground?.apply(this, arguments);
+    const hideAll = () => {
         for (const name of getInternalWidgetNames()) {
-            const w = this.widgets?.find(w => w.name === name);
+            const w = node.widgets?.find(w => w.name === name);
             collapseWidget(w);
         }
     };
+
+    hideAll();
+
+    // V3 may create widgets late — patch both draw hooks and use a short interval
+    const origOnDrawBackground = node.onDrawBackground;
+    node.onDrawBackground = function (ctx) {
+        origOnDrawBackground?.apply(this, arguments);
+        hideAll();
+    };
+
+    const origOnDrawForeground = node.onDrawForeground;
+    node.onDrawForeground = function (ctx) {
+        origOnDrawForeground?.apply(this, arguments);
+        hideAll();
+    };
+
+    // One-time interval to catch V3 widgets that appear after first render
+    let attempts = 0;
+    const iv = setInterval(() => {
+        hideAll();
+        attempts++;
+        if (attempts >= 10) clearInterval(iv);
+    }, 100);
 }
 
 // ── remove existing DOM widget ───────────────────────────────────────────────
@@ -187,9 +220,9 @@ function removeTabbedWidget(node) {
 
 function buildTabbedWidget(node) {
     const nodeId = String(node.id);
-    const store  = getNodeStore(nodeId);
-    const tabs   = parseTabs(node.properties?.tabs ?? DEFAULT_TABS);
-    const mode   = store.mode || DEFAULT_MODE;
+    const store = getNodeStore(nodeId);
+    const tabs = parseTabs(node.properties?.tabs ?? DEFAULT_TABS);
+    const mode = store.mode || DEFAULT_MODE;
 
     if (!store.active_tab || !tabs.includes(store.active_tab)) {
         store.active_tab = tabs[0];
@@ -199,7 +232,7 @@ function buildTabbedWidget(node) {
     for (const t of tabs) {
         newTexts[t] = store.texts[t] ?? "";
     }
-    store.texts    = newTexts;
+    store.texts = newTexts;
     store.tab_order = tabs;
     saveNodeStore(nodeId, store);
     syncAllWidgets(node);
@@ -246,8 +279,8 @@ function buildTabbedWidget(node) {
     });
 
     textarea.addEventListener("keydown", (e) => e.stopPropagation());
-    textarea.addEventListener("keyup",   (e) => e.stopPropagation());
-    textarea.addEventListener("keypress",(e) => e.stopPropagation());
+    textarea.addEventListener("keyup", (e) => e.stopPropagation());
+    textarea.addEventListener("keypress", (e) => e.stopPropagation());
 
     container.appendChild(tabBar);
     container.appendChild(textarea);
@@ -265,7 +298,7 @@ function buildTabbedWidget(node) {
     });
 
     if (domWidget) {
-        domWidget.__fp_tabBar  = tabBar;
+        domWidget.__fp_tabBar = tabBar;
         domWidget.__fp_textarea = textarea;
     }
 }
@@ -276,13 +309,13 @@ function _populateTabs(tabBar, textarea, tabs, store, nodeId, node) {
 
     function setActive(name) {
         store.active_tab = name;
-        textarea.value   = store.texts[name] ?? "";
+        textarea.value = store.texts[name] ?? "";
 
         for (const [n, btn] of Object.entries(tabBtns)) {
             const isActive = n === name;
-            btn.style.background  = isActive ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.06)";
+            btn.style.background = isActive ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.06)";
             btn.style.borderColor = isActive ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.14)";
-            btn.style.fontWeight  = isActive ? "600" : "400";
+            btn.style.fontWeight = isActive ? "600" : "400";
         }
 
         saveNodeStore(nodeId, store);
