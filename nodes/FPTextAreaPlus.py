@@ -1,53 +1,63 @@
-class FPTextAreaPlus:
+from comfy_api.latest import ComfyExtension, io
+
+
+class FPTextAreaPlus(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "text": ("STRING", {
-                    "multiline": True,
-                    "default": "",
-                    "placeholder": "Main text..."
-                }),
-            },
-            "optional": {
-                "before_text": ("STRING", {
-                    "multiline": True,
-                    "default": "",
-                    "forceInput": True
-                }),
-                "after_text": ("STRING", {
-                    "multiline": True,
-                    "default": "",
-                    "forceInput": True
-                }),
-            }
-        }
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="FPTextAreaPlus",
+            display_name="FP Text Area Plus",
+            category="AK/Folded Prompts",
+            inputs=[
+                io.String.Input(
+                    "text",
+                    default="",
+                    multiline=True,
+                ),
+                io.String.Input(
+                    "before_text",
+                    default="",
+                    multiline=True,
+                    force_input=True,
+                    optional=True,
+                ),
+                io.String.Input(
+                    "after_text",
+                    default="",
+                    multiline=True,
+                    force_input=True,
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                io.String.Output(display_name="text"),
+            ],
+        )
 
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("text",)
-    FUNCTION = "execute"
-    CATEGORY = "AK/Folded Prompts"
-    OUTPUT_NODE = False
+    @classmethod
+    def execute(
+        cls,
+        text: str = "",
+        before_text: str = "",
+        after_text: str = "",
+    ) -> io.NodeOutput:
+        parts = [p for p in [before_text or "", text or "", after_text or ""] if p]
+        return io.NodeOutput("\n".join(parts))
 
-    def execute(self, before_text=None, text="", after_text=None):
-        parts = []
 
-        # Keep all text exactly as the user entered it, only joining with newlines
-        if before_text is not None and before_text != "":
-            parts.append(str(before_text))
-        if text is not None and text != "":
-            parts.append(str(text))
-        if after_text is not None and after_text != "":
-            parts.append(str(after_text))
+class FPTextAreaPlusExtension(ComfyExtension):
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [FPTextAreaPlus]
 
-        full_text = "\n\n".join(parts)
-        return (full_text,)
+
+async def comfy_entrypoint() -> FPTextAreaPlusExtension:
+    return FPTextAreaPlusExtension()
 
 
 NODE_CLASS_MAPPINGS = {
-    "FPTextAreaPlus": FPTextAreaPlus
+    "FPTextAreaPlus": FPTextAreaPlus,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "FPTextAreaPlus": "FP Text Area Plus"
+    "FPTextAreaPlus": "FP Text Area Plus",
 }
