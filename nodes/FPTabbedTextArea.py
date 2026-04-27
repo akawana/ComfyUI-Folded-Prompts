@@ -14,7 +14,7 @@ class FPTabbedTextArea(io.ComfyNode):
         return io.Schema(
             node_id="FPTabbedTextArea",
             display_name="FP Tabbed Text Area",
-            category="FP/text",
+            category="AK/Folded Prompts",
             description=(
                 "A text node with multiple tabs. "
                 "Mode is controlled via node Properties → mode.\n"
