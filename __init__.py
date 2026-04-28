@@ -7,6 +7,7 @@ _NODE_MODULES = [
     "FPFoldedPrompts",
     "FPTextAreaPlus",
     "FPTabbedTextArea",
+    "ExecutionBlockerBreaker",
 ]
 
 NODE_CLASS_MAPPINGS = {}
