@@ -12,7 +12,7 @@ class ExecutionBlockerBreaker(io.ComfyNode):
         return io.Schema(
             node_id="ExecutionBlockerBreaker",
             display_name="Execution Blocker Breaker",
-            category="AK/utils",
+            category="AK/Utils",
             description=(
                 "Breaks ExecutionBlocker propagation at merge points. "
                 "If the input is an ExecutionBlocker, returns the last known real value. "
