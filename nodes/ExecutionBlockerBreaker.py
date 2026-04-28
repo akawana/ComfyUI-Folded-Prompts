@@ -12,14 +12,15 @@ class ExecutionBlockerBreaker(io.ComfyNode):
         return io.Schema(
             node_id="ExecutionBlockerBreaker",
             display_name="Execution Blocker Breaker",
-            category="AK/Utils",
+            category="AK/utils",
+            not_idempotent=True,
             description=(
                 "Breaks ExecutionBlocker propagation at merge points. "
                 "If the input is an ExecutionBlocker, returns the last known real value. "
                 "If the input is a real value, caches it and passes it through."
             ),
             inputs=[
-                io.MatchType.Input("value", template=template, lazy=True),
+                io.MatchType.Input("value", template=template),
             ],
             outputs=[
                 io.MatchType.Output(template=template, display_name="value"),
@@ -28,20 +29,15 @@ class ExecutionBlockerBreaker(io.ComfyNode):
         )
 
     @classmethod
-    def check_lazy_status(cls, value=None, **kwargs) -> list[str]:
-        if value is None:
-            return ["value"]
-        return []
-
-    @classmethod
     def execute(cls, value=None, **kwargs) -> io.NodeOutput:
         unique_id = str(cls.hidden.unique_id) if cls.hidden else ""
+        print(f"[ExecutionBlockerBreaker] execute: id={unique_id} value type={type(value).__name__} is_blocker={isinstance(value, ExecutionBlocker) if value is not None else 'N/A'}")
         if value is None or isinstance(value, ExecutionBlocker):
             cached = cls._prev_values.get(unique_id)
-            print(f"[ExecutionBlockerBreaker] id={unique_id} got blocker → returning cached type={type(cached).__name__}")
+            print(f"[ExecutionBlockerBreaker] execute: got blocker/None → returning cached type={type(cached).__name__ if cached is not None else 'NoneType'}")
             return io.NodeOutput(cached)
         cls._prev_values[unique_id] = value
-        print(f"[ExecutionBlockerBreaker] id={unique_id} got real value type={type(value).__name__} → passing through")
+        print(f"[ExecutionBlockerBreaker] execute: got real value → passing through")
         return io.NodeOutput(value)
 
 

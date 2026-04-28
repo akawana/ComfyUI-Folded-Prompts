@@ -1,9 +1,7 @@
 import os
 import json
-import hashlib
 import traceback
 
-from comfy_execution.graph import ExecutionBlocker
 from comfy_api.latest import ComfyExtension, io
 
 
@@ -58,8 +56,6 @@ def _build_output_text(pf_json: str, text: str, before_text: str) -> str:
 
 class FPFoldedPrompts(io.ComfyNode):
 
-    _prev_hashes: dict = {}  # { unique_id: pf_json_hash }
-
     @classmethod
     def define_schema(cls) -> io.Schema:
         return io.Schema(
@@ -68,8 +64,7 @@ class FPFoldedPrompts(io.ComfyNode):
             category="AK/Folded Prompts",
             description=(
                 "Builds prompt text from a collapsible folder tree. "
-                "All UI is implemented in JS. "
-                "Returns ExecutionBlocker if pf_json has not changed since last run."
+                "All UI is implemented in JS."
             ),
             inputs=[
                 io.String.Input(
@@ -126,20 +121,7 @@ class FPFoldedPrompts(io.ComfyNode):
             except Exception as e:
                 print(f"[FPFoldedPrompts] Failed to save JSON: {e}")
 
-        # Compute hash of everything that affects output
-        fingerprint = hashlib.md5(
-            ((pf_json or "") + (text or "") + (before_text or "")).encode()
-        ).hexdigest()
-
-        prev = cls._prev_hashes.get(unique_id)
-        cls._prev_hashes[unique_id] = fingerprint
-
-        if prev is not None and fingerprint == prev:
-            print(f"[FPFoldedPrompts] id={unique_id} unchanged → ExecutionBlocker")
-            return io.NodeOutput(ExecutionBlocker(None))
-
         result = _build_output_text(pf_json, text, before_text)
-        print(f"[FPFoldedPrompts] id={unique_id} changed → returning text")
         return io.NodeOutput(result)
 
 
