@@ -37,6 +37,10 @@ class FPTab(io.ComfyNode):
                 io.String.Output(display_name="text"),
             ],
         )
+    
+    @classmethod
+    def validate_inputs(cls, owner_id="", tab_name="", **kwargs):
+        return True
 
     @classmethod
     def fingerprint_inputs(cls, __fp_tab_text__: str = "", **kwargs) -> str:
