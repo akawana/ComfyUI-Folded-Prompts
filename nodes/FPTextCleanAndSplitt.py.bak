@@ -4,15 +4,10 @@ import json
 import hashlib
 
 from comfy_api.latest import ComfyExtension, io
-from .PromptUtils import (
-    clearCommentedLines, formatTags,
-    clearHtmlLikeTags, clearHtmlLikeTagsWithContent,
-    clearDoubleEmptyLines,
-    htmlTagsContentList, getHtmlTagContent, insertStringToListItems,
-    createImpactWildcard,
-)
 
 _AR_BLOCK_RE = re.compile(r"<AR([1-5])>(.*?)</>", re.DOTALL | re.IGNORECASE)
+_AR_OPEN_RE  = re.compile(r"<AR([1-5])>", re.IGNORECASE)
+_AR_CLOSE_RE = re.compile(r"</>",         re.IGNORECASE)
 
 
 def collapse_empty_lines(text: str) -> str:
@@ -49,33 +44,18 @@ def get_uncommented_text(full_text: str, comment_prefix: str) -> str:
     return "\n".join(kept)
 
 
-_AR_TAGS = ("<AR1>", "<AR2>", "<AR3>", "<AR4>", "<AR5>", "<ALL>")
-
-
-def make_all_expt_comments(full_text: str, comment_prefix: str) -> str:
-    """
-    all_expt_comments pipeline:
-      clearCommentedLines → clearHtmlLikeTags(AR1..5, ALL) → clearDoubleEmptyLines → formatTags
-    """
-    if not full_text:
+def make_all_expt_comments(uncommented_text: str) -> str:
+    if not uncommented_text:
         return ""
-    s = clearCommentedLines(full_text, comment_prefix)
-    s = clearHtmlLikeTags(s, *_AR_TAGS)
-    s = clearDoubleEmptyLines(s)
-    return formatTags(s)
+    s = _AR_OPEN_RE.sub("", uncommented_text)
+    s = _AR_CLOSE_RE.sub("", s)
+    return collapse_empty_lines(s)
 
 
-def make_all_expt_areas(full_text: str, comment_prefix: str) -> str:
-    """
-    all_expt_areas pipeline:
-      clearCommentedLines → clearHtmlLikeTagsWithContent(AR1..5, ALL) → clearDoubleEmptyLines → formatTags
-    """
-    if not full_text:
+def make_all_expt_areas(uncommented_text: str) -> str:
+    if not uncommented_text:
         return ""
-    s = clearCommentedLines(full_text, comment_prefix)
-    s = clearHtmlLikeTagsWithContent(s, *_AR_TAGS)
-    s = clearDoubleEmptyLines(s)
-    return formatTags(s)
+    return collapse_empty_lines(re.sub(_AR_BLOCK_RE, "", uncommented_text))
 
 
 def extract_ar_blocks(text: str) -> dict[str, list[str]]:
@@ -179,18 +159,64 @@ class FPTextCleanAndSplitt(io.ComfyNode):
         found_ars   = [k for k, v in ar_contents.items() if v]
         # print(f"[FP EXECUTE] id={unique_id} AR blocks found: {found_ars if found_ars else 'none'}")
 
-        all_expt_comments = make_all_expt_comments(full_text, prefix)
-        all_expt_areas    = make_all_expt_areas(full_text, prefix)
+        all_expt_comments = make_all_expt_comments(uncommented_text)
+        all_expt_areas    = make_all_expt_areas(uncommented_text)
 
-        ar_list         = htmlTagsContentList(
-            full_text,
-            ["AR1", "AR2", "AR3", "AR4", "AR5"],
-            min_length=5,
-            comment_prefix=prefix,
-        )
-        all_tag         = getHtmlTagContent(full_text, "ALL", comment_prefix=prefix)
-        embeds          = insertStringToListItems(ar_list, all_tag)
-        impact_wildcard = createImpactWildcard(embeds)
+        ar_list = []
+        for n in range(1, 6):
+            combined = "\n".join(ar_contents[f"AR{n}"]).strip()
+            ar_list.append(combined if combined else None)
+
+        impact_lines = ["[LAB]"]
+        for n in range(1, 6):
+            parts_local = ar_contents.get(f"AR{n}", [])
+            if not parts_local:
+                continue
+
+            flat = " ".join(
+                str(p).replace("\r\n", "\n").replace("\r", "\n").strip()
+                for p in parts_local
+                if p is not None and str(p).strip() != ""
+            )
+            flat = re.sub(r"\s*,\s*",    ", ", flat)
+            flat = re.sub(r"(?:,\s*){2,}", ", ", flat)
+            flat = re.sub(r"(?:,\s*)+$",   "",   flat).strip()
+
+            if not flat:
+                continue
+
+            if not flat.endswith(","):
+                flat += ","
+            if flat.endswith(","):
+                flat += " "
+
+            impact_lines.append(f"[AR{n}]{flat}")
+
+        bt = (before_text or "").strip()
+        at = (after_text  or "").strip()
+
+        if bt or at:
+            # print(f"[FP EXECUTE] id={unique_id} before_text={bt[:40]!r} after_text={at[:40]!r}")
+            new_ar_list = []
+            for v in ar_list:
+                if v is None:
+                    new_ar_list.append(None)
+                else:
+                    new_ar_list.append(f"{bt} {v} {at}".strip())
+            ar_list = new_ar_list
+
+            new_impact_lines = []
+            for line in impact_lines:
+                if line.startswith("[AR") and "]" in line:
+                    tag, rest = line.split("]", 1)
+                    rest = (rest or "").strip()
+                    new_line = f"{tag}] {bt} {rest} {at}".rstrip() if rest else f"{tag}] {bt} {at}".rstrip()
+                    new_impact_lines.append(new_line)
+                else:
+                    new_impact_lines.append(line)
+            impact_lines = new_impact_lines
+
+        impact_wildcard = "\n".join(impact_lines)
 
         # print(f"[FP EXECUTE] id={unique_id} all_expt_comments={all_expt_comments[:80]!r}")
         # print(f"[FP EXECUTE] id={unique_id} all_expt_areas={all_expt_areas[:80]!r}")
@@ -198,7 +224,7 @@ class FPTextCleanAndSplitt(io.ComfyNode):
         # print(f"[FP EXECUTE] id={unique_id} impact_wildcard={impact_wildcard[:120]!r}")
         # print(f"[FP EXECUTE] id={unique_id} done")
 
-        return io.NodeOutput(all_expt_comments, all_expt_areas, embeds, impact_wildcard)
+        return io.NodeOutput(all_expt_comments, all_expt_areas, ar_list, impact_wildcard)
 
 
 class FPTextCleanAndSplittExtension(ComfyExtension):

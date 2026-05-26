@@ -1,0 +1,374 @@
+import { app } from "../../scripts/app.js";
+
+const NODE_CLASS   = "FPTabbedTextArea";
+const STORE_KEY    = "fp_tabbed_text_area";
+const META_WIDGET  = "node_data_json";
+const TEXT_WIDGET  = "__fp_text__";
+const DEFAULT_TABS = "First";
+const DEFAULT_MODE = "separate_tabs";
+
+// ── CodeMirror loader ─────────────────────────────────────────────────────────
+
+const CM_VERSION = "5.65.2";
+const CM_BASE    = `https://cdnjs.cloudflare.com/ajax/libs/codemirror/${CM_VERSION}`;
+
+let _cmReady = null;
+
+function loadCodeMirror() {
+    if (_cmReady) return _cmReady;
+
+    const tag = (el, attrs) => new Promise((res, rej) => {
+        if (el === "script" && document.querySelector(`script[src="${attrs.src}"]`)) { res(); return; }
+        if (el === "link"   && document.querySelector(`link[href="${attrs.href}"]`))  { res(); return; }
+        const node = document.createElement(el);
+        Object.assign(node, attrs);
+        node.onload = res;
+        node.onerror = rej;
+        document.head.appendChild(node);
+    });
+
+    _cmReady = (async () => {
+        await Promise.all([
+            tag("script", { src: `${CM_BASE}/codemirror.min.js` }),
+            tag("link",   { rel: "stylesheet", href: `${CM_BASE}/codemirror.min.css` }),
+            tag("link",   { rel: "stylesheet", href: `${CM_BASE}/theme/monokai.min.css` }),
+        ]);
+        await Promise.all([
+            tag("script", { src: `${CM_BASE}/mode/python/python.min.js` }),
+            tag("script", { src: `${CM_BASE}/mode/javascript/javascript.min.js` }),
+            tag("script", { src: `${CM_BASE}/addon/edit/closebrackets.min.js` }),
+            tag("script", { src: `${CM_BASE}/addon/edit/matchbrackets.min.js` }),
+        ]);
+    })();
+
+    return _cmReady;
+}
+
+// ── graph.extra store ─────────────────────────────────────────────────────────
+
+function getNodeStore(nodeId) {
+    const g = app?.graph;
+    if (!g) return null;
+    if (!g.extra) g.extra = {};
+    if (!g.extra[STORE_KEY]) g.extra[STORE_KEY] = {};
+    if (!g.extra[STORE_KEY][nodeId]) {
+        g.extra[STORE_KEY][nodeId] = { active_tab: null, texts: {}, tab_order: [], mode: DEFAULT_MODE };
+    }
+    return g.extra[STORE_KEY][nodeId];
+}
+
+function saveNodeStore(nodeId, data) {
+    const g = app?.graph;
+    if (!g) return;
+    if (!g.extra) g.extra = {};
+    if (!g.extra[STORE_KEY]) g.extra[STORE_KEY] = {};
+    g.extra[STORE_KEY][nodeId] = data;
+}
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+function parseTabs(raw) {
+    const seen = new Set(), result = [];
+    for (const t of String(raw ?? DEFAULT_TABS).split(",")) {
+        const name = t.trim();
+        if (!name || seen.has(name)) continue;
+        seen.add(name); result.push(name);
+    }
+    if (result.length === 0) result.push("First");
+    return result;
+}
+
+function computeTextOutput(store) {
+    const mode      = store.mode || DEFAULT_MODE;
+    const tab_order = store.tab_order || [];
+    const texts     = store.texts || {};
+    if (mode === "separate_tabs") return texts[store.active_tab] ?? "";
+    return tab_order.map(t => texts[t] ?? "").join("\n");
+}
+
+function syncAllWidgets(node) {
+    const store = getNodeStore(String(node.id));
+    if (!store) return;
+    const metaW = node.widgets?.find(w => w.name === META_WIDGET);
+    if (metaW) metaW.value = JSON.stringify({
+        mode: store.mode, active_tab: store.active_tab, tab_order: store.tab_order,
+    });
+    const textW = node.widgets?.find(w => w.name === TEXT_WIDGET);
+    if (textW) textW.value = computeTextOutput(store);
+}
+
+// ── collapse hidden widgets ───────────────────────────────────────────────────
+
+function collapseWidget(w) {
+    if (!w) return;
+    w.hidden = true;
+    w.computeSize = () => [0, -4];
+    w.serializeValue = async () => w.value;
+    if (w.element)  w.element.style.cssText  = "display:none;height:0;min-height:0;padding:0;margin:0;overflow:hidden;";
+    if (w.inputEl)  w.inputEl.style.cssText  = "display:none;height:0;min-height:0;padding:0;margin:0;overflow:hidden;";
+}
+
+function ensureHiddenWidgets(node) {
+    const hideAll = () => [META_WIDGET, TEXT_WIDGET].forEach(n => collapseWidget(node.widgets?.find(w => w.name === n)));
+    hideAll();
+    const origBg = node.onDrawBackground;
+    node.onDrawBackground = function (ctx) { origBg?.apply(this, arguments); hideAll(); };
+    const origFg = node.onDrawForeground;
+    node.onDrawForeground = function (ctx) { origFg?.apply(this, arguments); hideAll(); };
+    let attempts = 0;
+    const iv = setInterval(() => { hideAll(); if (++attempts >= 10) clearInterval(iv); }, 100);
+}
+
+// ── remove existing DOM widget ────────────────────────────────────────────────
+
+function removeTabbedWidget(node) {
+    if (!node.widgets) return;
+    const idx = node.widgets.findIndex(w => w.name === "__fp_tabs__");
+    if (idx === -1) return;
+    const w = node.widgets[idx];
+    if (w.element?.parentNode) w.element.parentNode.removeChild(w.element);
+    node.widgets.splice(idx, 1);
+}
+
+// ── CSS injected once ─────────────────────────────────────────────────────────
+
+const EDITOR_HEIGHT = 300; // px — CM scroll area height
+
+let _cssInjected = false;
+function injectStyles() {
+    if (_cssInjected) return;
+    _cssInjected = true;
+    const style = document.createElement("style");
+    style.textContent = `
+        .fp-tab-container .CodeMirror {
+            font-size: 12px;
+            height: ${EDITOR_HEIGHT}px;
+            border-radius: 0 0 6px 6px;
+            background: rgba(0,0,0,0.35);
+        }
+        .fp-tab-container .CodeMirror-scroll {
+            /* keep CM's own scroll — this is what makes click coords correct */
+            box-sizing: border-box;
+        }
+        .fp-tab-btn {
+            padding: 3px 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(255,255,255,0.06);
+            color: inherit;
+            cursor: pointer;
+            font-size: 11px;
+            white-space: nowrap;
+            transition: background 0.1s;
+        }
+        .fp-tab-btn.active {
+            background: rgba(255,255,255,0.18);
+            border-color: rgba(255,255,255,0.35);
+            font-weight: 600;
+        }
+        .fp-tab-btn:hover:not(.active) {
+            background: rgba(255,255,255,0.11);
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// ── build the DOM widget ──────────────────────────────────────────────────────
+
+async function buildTabbedWidget(node) {
+    const nodeId = String(node.id);
+    const store  = getNodeStore(nodeId);
+    const tabs   = parseTabs(node.properties?.tabs ?? DEFAULT_TABS);
+    store.mode   = node.properties?.mode || DEFAULT_MODE;
+
+    if (!store.active_tab || !tabs.includes(store.active_tab)) store.active_tab = tabs[0];
+
+    const newTexts = {};
+    for (const t of tabs) newTexts[t] = store.texts?.[t] ?? "";
+    store.texts     = newTexts;
+    store.tab_order = tabs;
+    saveNodeStore(nodeId, store);
+    syncAllWidgets(node);
+
+    // widget exists — just rebuild tabs, reuse CM
+    const existing = node.widgets?.find(w => w.name === "__fp_tabs__");
+    if (existing?.__fp_tabBar && existing?.__fp_cm) {
+        _populateTabs(existing.__fp_tabBar, existing.__fp_cm, tabs, store, nodeId, node);
+        return;
+    }
+
+    await loadCodeMirror();
+    injectStyles();
+    removeTabbedWidget(node);
+
+    // ── container
+    const container = document.createElement("div");
+    container.className = "fp-tab-container";
+    container.style.cssText = "display:flex;flex-direction:column;width:100%;background:rgba(0,0,0,0.25);border-radius:8px;padding:6px;box-sizing:border-box;";
+
+    // ── tab bar
+    const tabBar = document.createElement("div");
+    tabBar.style.cssText = "display:flex;gap:3px;flex-wrap:wrap;padding:4px 4px 6px 4px;background:rgba(0,0,0,0.15);border-radius:6px 6px 0 0;margin:-6px -6px 4px -6px;width:calc(100% + 12px);box-sizing:border-box;";
+
+    // ── editor host
+    const editorHost = document.createElement("div");
+    editorHost.style.cssText = `width:100%;height:${EDITOR_HEIGHT}px;`;
+
+    container.appendChild(tabBar);
+    container.appendChild(editorHost);
+
+    // ── CodeMirror — normal fixed-height mode so click coords are correct
+    const cm = CodeMirror(editorHost, {
+        value:             store.texts[store.active_tab] ?? "",
+        mode:              "python",
+        theme:             "monokai",
+        lineNumbers:       false,
+        lineWrapping:      true,
+        indentUnit:        4,
+        tabSize:           4,
+        matchBrackets:     true,
+        autoCloseBrackets: true,
+        extraKeys: {
+            "Tab":       c => c.replaceSelection("    "),
+            "Shift-Tab": "indentLess",
+        },
+    });
+
+    // setSize to fill the host div exactly
+    cm.setSize("100%", EDITOR_HEIGHT);
+
+    // refresh once element is in live DOM so CM measures widths correctly
+    const obs = new MutationObserver(() => {
+        if (document.contains(editorHost)) {
+            obs.disconnect();
+            cm.refresh();
+        }
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+
+    // CM → store
+    cm.on("change", () => {
+        store.texts[store.active_tab] = cm.getValue();
+        saveNodeStore(nodeId, store);
+        syncAllWidgets(node);
+    });
+
+    // block CM keys from reaching LiteGraph
+    const cmEl = cm.getWrapperElement();
+    ["keydown","keyup","keypress"].forEach(ev =>
+        cmEl.addEventListener(ev, e => e.stopPropagation())
+    );
+
+    _populateTabs(tabBar, cm, tabs, store, nodeId, node);
+
+    const domWidget = node.addDOMWidget("__fp_tabs__", "div", container, {
+        getValue() { return store.texts[store.active_tab] ?? ""; },
+        setValue(v) {
+            store.texts[store.active_tab] = String(v ?? "");
+            if (cm.getValue() !== store.texts[store.active_tab])
+                cm.setValue(store.texts[store.active_tab]);
+            saveNodeStore(nodeId, store);
+            syncAllWidgets(node);
+        },
+    });
+
+    if (domWidget) {
+        domWidget.__fp_tabBar = tabBar;
+        domWidget.__fp_cm     = cm;
+    }
+}
+
+function _populateTabs(tabBar, cm, tabs, store, nodeId, node) {
+    tabBar.innerHTML = "";
+    const btns = {};
+
+    function setActive(name) {
+        store.active_tab = name;
+        const newVal = store.texts[name] ?? "";
+        if (cm.getValue() !== newVal) {
+            cm.operation(() => {
+                cm.setValue(newVal);
+                cm.clearHistory();
+            });
+        }
+        for (const [n, btn] of Object.entries(btns)) btn.classList.toggle("active", n === name);
+        saveNodeStore(nodeId, store);
+        syncAllWidgets(node);
+    }
+
+    for (const name of tabs) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = name;
+        btn.className = "fp-tab-btn";
+        btn.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setActive(name);
+            btn.blur();
+        });
+        btns[name] = btn;
+        tabBar.appendChild(btn);
+    }
+
+    setActive(store.active_tab);
+}
+
+// ── shared init ───────────────────────────────────────────────────────────────
+
+function initNode(node) {
+    if (!node.properties) node.properties = {};
+    if (node.properties.tabs === undefined) node.properties.tabs = DEFAULT_TABS;
+    if (node.properties.mode === undefined) node.properties.mode = DEFAULT_MODE;
+
+    const store = getNodeStore(String(node.id));
+    if (store) { store.mode = node.properties.mode || DEFAULT_MODE; saveNodeStore(String(node.id), store); }
+
+    ensureHiddenWidgets(node);
+    buildTabbedWidget(node);
+
+    const origOnPropertyChanged = node.onPropertyChanged;
+    node.onPropertyChanged = function (name, value) {
+        origOnPropertyChanged?.apply(this, arguments);
+        if (name === "tabs") buildTabbedWidget(node);
+        if (name === "mode") {
+            const s = getNodeStore(String(node.id));
+            if (s) { s.mode = value || DEFAULT_MODE; saveNodeStore(String(node.id), s); syncAllWidgets(node); }
+        }
+    };
+}
+
+// ── extension ─────────────────────────────────────────────────────────────────
+
+app.registerExtension({
+    name: "FP.TabbedTextArea",
+
+    async beforeRegisterNodeDef(nodeType, nodeData) {
+        if (nodeData.name !== NODE_CLASS) return;
+        const origOnNodeCreated = nodeType.prototype.onNodeCreated;
+        nodeType.prototype.onNodeCreated = function () {
+            origOnNodeCreated?.apply(this, arguments);
+            this.addProperty("mode", DEFAULT_MODE, "enum", {
+                values: ["separate_tabs", "chained_tabs", "separate_outputs"],
+            });
+            this.addProperty("tabs", DEFAULT_TABS, "string");
+        };
+    },
+
+    async nodeCreated(node) {
+        if (node?.comfyClass !== NODE_CLASS) return;
+        node.__fp_tabs_init_pending = true;
+        queueMicrotask(() => {
+            if (!node.__fp_tabs_init_pending) return;
+            node.__fp_tabs_init_pending = false;
+            initNode(node);
+            node.setSize([node.size[0], 200]);
+        });
+    },
+
+    loadedGraphNode(node) {
+        if (node?.comfyClass !== NODE_CLASS) return;
+        node.__fp_tabs_init_pending = false;
+        initNode(node);
+    },
+});
