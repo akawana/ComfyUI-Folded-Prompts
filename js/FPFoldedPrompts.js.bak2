@@ -386,7 +386,7 @@ import { app } from "../../../scripts/app.js";
             let area = "ALL";
             const singleAreaMatch = text.match(/^<(AR[1-5]|ALL)>\s*([\s\S]*?)\s*<\/>\s*$/);
             if (singleAreaMatch) {
-                area = singleAreaMatch[1] === "ALL" ? "ALL_TAG" : singleAreaMatch[1];
+                area = singleAreaMatch[1];
                 const innerText = singleAreaMatch[2].trim();
                 const lineItem = {
                     type: "line",
@@ -416,7 +416,7 @@ import { app } from "../../../scripts/app.js";
             // --- Start of multiline block <ARx> ... (without </> on this line)
             const openAreaMatch = text.match(/^<(AR[1-5]|ALL)>\s*(.*)$/);
             if (openAreaMatch) {
-                areaBlockArea = openAreaMatch[1] === "ALL" ? "ALL_TAG" : openAreaMatch[1];
+                areaBlockArea = openAreaMatch[1];
                 areaBlockEnabled = enabled;
                 areaBlockLines = [];
 

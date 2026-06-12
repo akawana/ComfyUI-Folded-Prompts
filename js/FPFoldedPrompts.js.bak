@@ -7,7 +7,7 @@ import { api } from "../../scripts/api.js";
 import { app } from "../../../scripts/app.js";
 
 (function () {
-    const AREAS = ["ALL", "AR1", "AR2", "AR3", "AR4", "AR5", "ALL_TAG"];
+    const AREAS = ["ALL", "AR1", "AR2", "AR3", "AR4", "AR5"];
 
     // Tree UI configuration
     const TREE_FONT_FAMILY = "sans-serif";
@@ -119,8 +119,6 @@ import { app } from "../../../scripts/app.js";
                 return "④";
             case "AR5":
                 return "⑤";
-            case "ALL_TAG":
-                return "Ⓐ";
             case "ALL":
             default:
                 return "×";
@@ -384,9 +382,9 @@ import { app } from "../../../scripts/app.js";
 
             // --- Single-line area tag: <ARx> ... </>
             let area = "ALL";
-            const singleAreaMatch = text.match(/^<(AR[1-5]|ALL)>\s*([\s\S]*?)\s*<\/>\s*$/);
+            const singleAreaMatch = text.match(/^<(AR[1-5])>\s*([\s\S]*?)\s*<\/>\s*$/);
             if (singleAreaMatch) {
-                area = singleAreaMatch[1] === "ALL" ? "ALL_TAG" : singleAreaMatch[1];
+                area = singleAreaMatch[1];
                 const innerText = singleAreaMatch[2].trim();
                 const lineItem = {
                     type: "line",
@@ -414,9 +412,9 @@ import { app } from "../../../scripts/app.js";
             }
 
             // --- Start of multiline block <ARx> ... (without </> on this line)
-            const openAreaMatch = text.match(/^<(AR[1-5]|ALL)>\s*(.*)$/);
+            const openAreaMatch = text.match(/^<(AR[1-5])>\s*(.*)$/);
             if (openAreaMatch) {
-                areaBlockArea = openAreaMatch[1] === "ALL" ? "ALL_TAG" : openAreaMatch[1];
+                areaBlockArea = openAreaMatch[1];
                 areaBlockEnabled = enabled;
                 areaBlockLines = [];
 
@@ -494,10 +492,9 @@ import { app } from "../../../scripts/app.js";
                     // Apply weight to the line text (if any)
                     lineText = applyWeightToLineText(lineText, item.weight);
 
-                    // If the line has area (AR1..AR5 or ALL_TAG) — wrap in tag
+                    // If the line has area (AR1..AR5) — wrap in tag
                     if (item.area && item.area !== "ALL") {
-                        const tagName = item.area === "ALL_TAG" ? "ALL" : item.area;
-                        lineText = `<${tagName}>` + lineText + `</>`;
+                        lineText = `<${item.area}>` + lineText + `</>`;
                     }
 
                     const prefix = item.enabled ? "" : "// ";
@@ -900,8 +897,6 @@ import { app } from "../../../scripts/app.js";
                 ctx.fillStyle = "#777";
             } else if (areaVal === "ALL") {
                 ctx.fillStyle = "#999999";
-            } else if (areaVal === "ALL_TAG") {
-                ctx.fillStyle = "#00cfff";
             } else {
                 ctx.fillStyle = "#ffff00";
             }

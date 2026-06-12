@@ -39,10 +39,8 @@ def _build_output_text(pf_json: str, text: str, before_text: str) -> str:
                         continue
                     raw_line = item.get("text", "")
                     eff_area = current_area
-                    if eff_area and eff_area not in ("ALL", "ALL_TAG"):
+                    if eff_area and eff_area != "ALL":
                         result_lines.append(f"<{eff_area}>{raw_line}</>")
-                    elif eff_area == "ALL_TAG":
-                        result_lines.append(f"<ALL>{raw_line}</>")
                     else:
                         result_lines.append(raw_line)
 

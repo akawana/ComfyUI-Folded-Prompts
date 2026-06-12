@@ -380,7 +380,7 @@ function extractTagCodeMirror(cmRoot) {
     const { tagStr, tagIndex, tags, commentPrefix } = found;
     const remaining = tags.filter((_, i) => i !== tagIndex).map(t => t.trimmed).filter(Boolean);
     const newLine   = commentPrefix + rebuildLine(remaining);
-    const commented = prefixSp + tagStr + ", ";
+    const commented = prefixSp + tagStr;
     view.dispatch({
         changes: [
             { from: line.from, to: line.to, insert: newLine },
@@ -399,7 +399,7 @@ function extractTagTextarea(ta) {
     const { tagStr, tagIndex, tags, commentPrefix } = found;
     const remaining = tags.filter((_, i) => i !== tagIndex).map(t => t.trimmed).filter(Boolean);
     const newLine   = commentPrefix + rebuildLine(remaining);
-    const commented = prefixSp + tagStr + ", ";
+    const commented = prefixSp + tagStr;
     const newText   = newLine + "\n" + commented;
     const newCursor = newLine.length + 1 + commented.length;
     taReplaceLine(ta, ls, end, newText, newCursor);
