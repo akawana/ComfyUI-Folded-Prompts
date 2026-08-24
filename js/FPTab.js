@@ -109,11 +109,11 @@ function refreshText(node) {
 }
 
 function syncFPTab(node) {
-    console.log(`[FPTab] syncFPTab id=${node.id} before: owner=${getWidgetValue(node, OWNER_WIDGET)} tab=${getWidgetValue(node, TAB_WIDGET)}`);
+    // console.log(`[FPTab] syncFPTab id=${node.id} before: owner=${getWidgetValue(node, OWNER_WIDGET)} tab=${getWidgetValue(node, TAB_WIDGET)}`);
     refreshOwnerList(node);
     refreshTabList(node);
     refreshText(node);
-    console.log(`[FPTab] syncFPTab id=${node.id} after: owner=${getWidgetValue(node, OWNER_WIDGET)} tab=${getWidgetValue(node, TAB_WIDGET)} options=${node.widgets?.find(w=>w.name===TAB_WIDGET)?.options?.values}`);
+    // console.log(`[FPTab] syncFPTab id=${node.id} after: owner=${getWidgetValue(node, OWNER_WIDGET)} tab=${getWidgetValue(node, TAB_WIDGET)} options=${node.widgets?.find(w=>w.name===TAB_WIDGET)?.options?.values}`);
 }
 
 function syncAllFPTabs() {
