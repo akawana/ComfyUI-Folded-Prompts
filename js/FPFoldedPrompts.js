@@ -221,7 +221,7 @@ import { app } from "../../../scripts/app.js";
     // ------------------- TEXT -> TREE -------------------
 
     function parseFolderTextToTree(rawText) {
-        log("parseFolderTextToTree() start");
+        // log("parseFolderTextToTree() start");
 
         const rawLines = (rawText || "").split(/\r?\n/);
 
@@ -249,7 +249,7 @@ import { app } from "../../../scripts/app.js";
                         children: [],
                     };
                     currentList.push(folder);
-                    log("Created folder:", folder.id, "title=", folder.title);
+                    // log("Created folder:", folder.id, "title=", folder.title);
                 }
                 currentList = folder.children;
             }
@@ -306,16 +306,16 @@ import { app } from "../../../scripts/app.js";
             const targetList = getTargetListForCurrentFolder(currentFolder);
             targetList.push(lineItem);
 
-            log(
-                "Added line (area block):",
-                lineItem.id,
-                "area=",
-                areaBlockArea,
-                "enabled=",
-                areaBlockEnabled,
-                "text=",
-                textCombined
-            );
+            // log(
+            //     "Added line (area block):",
+            //     lineItem.id,
+            //     "area=",
+            //     areaBlockArea,
+            //     "enabled=",
+            //     areaBlockEnabled,
+            //     "text=",
+            //     textCombined
+            // );
 
             inAreaBlock = false;
             areaBlockArea = "ALL";
@@ -400,16 +400,16 @@ import { app } from "../../../scripts/app.js";
                 const targetList = getTargetListForCurrentFolder(currentFolder);
                 targetList.push(lineItem);
 
-                log(
-                    "Added line (single area):",
-                    lineItem.id,
-                    "area=",
-                    area,
-                    "enabled=",
-                    enabled,
-                    "text=",
-                    innerText
-                );
+                // log(
+                //     "Added line (single area):",
+                //     lineItem.id,
+                //     "area=",
+                //     area,
+                //     "enabled=",
+                //     enabled,
+                //     "text=",
+                //     innerText
+                // );
                 continue;
             }
 
@@ -452,7 +452,7 @@ import { app } from "../../../scripts/app.js";
             const targetList = getTargetListForCurrentFolder(currentFolder);
             targetList.push(lineItem);
 
-            log("Added line:", lineItem.id, "enabled=", enabled, "text=", text);
+            // log("Added line:", lineItem.id, "enabled=", enabled, "text=", text);
         }
 
         // If file ended and area block is not closed — flush anyway
@@ -465,14 +465,14 @@ import { app } from "../../../scripts/app.js";
             root.items.push(rootFolder);
         }
 
-        log("parseFolderTextToTree() done, items:", root.items.length);
+        // log("parseFolderTextToTree() done, items:", root.items.length);
         return root;
     }
 
     // ------------------- TREE -> TEXT -------------------
 
     function treeToText(tree) {
-        log("treeToText() start");
+        // log("treeToText() start");
         const items = (tree && tree.items) || [];
         const out = [];
 
@@ -486,7 +486,7 @@ import { app } from "../../../scripts/app.js";
                         out.push("");
                     }
                     out.push("[" + bracketPath.replace(/\/+$/, "/") + "]");
-                    log("Export folder:", bracketPath);
+                    // log("Export folder:", bracketPath);
                     walk(item.children || [], newPath);
                 } else if (item.type === "line") {
                     let lineText = item.text || "";
@@ -502,28 +502,28 @@ import { app } from "../../../scripts/app.js";
 
                     const prefix = item.enabled ? "" : "// ";
                     out.push(prefix + lineText);
-                    log(
-                        "Export line:",
-                        "enabled=",
-                        item.enabled,
-                        "area=",
-                        item.area || "ALL",
-                        "text=",
-                        item.text || ""
-                    );
+                    // log(
+                    //     "Export line:",
+                    //     "enabled=",
+                    //     item.enabled,
+                    //     "area=",
+                    //     item.area || "ALL",
+                    //     "text=",
+                    //     item.text || ""
+                    // );
                 }
             }
         }
 
         walk(items, []);
         const result = out.join("\n");
-        log("treeToText() done, length:", result.length);
+        // log("treeToText() done, length:", result.length);
         return result;
     }
     // ------------------- TREE helpers -------------------
 
     function rebuildFlat(state) {
-        log("rebuildFlat()");
+        // log("rebuildFlat()");
         const flat = [];
 
         function computeFolderEnabled(item) {
@@ -634,11 +634,11 @@ import { app } from "../../../scripts/app.js";
 
         walk(state.tree.items || [], 0, null, false);
         state.flat = flat;
-        log("rebuildFlat() done, rows:", flat.length);
+        // log("rebuildFlat() done, rows:", flat.length);
     }
 
     function toggleFolderEnabled(folderItem, newEnabled) {
-        log("toggleFolderEnabled() folder:", folderItem.title, "->", newEnabled);
+        // log("toggleFolderEnabled() folder:", folderItem.title, "->", newEnabled);
         function walk(items) {
             for (const item of items || []) {
                 if (item.type === "line") {
@@ -652,7 +652,7 @@ import { app } from "../../../scripts/app.js";
     }
 
     function resetTree(tree) {
-        log("resetTree()");
+        // log("resetTree()");
         function walk(items) {
             for (const item of items || []) {
                 item.area = "ALL";
@@ -699,8 +699,8 @@ import { app } from "../../../scripts/app.js";
         try {
             const json = JSON.stringify(s.tree);
             s.pfJsonWidget.value = json;
-            log("syncJsonWidget() ok, length:", json.length);
-            console.log("[FPFoldedPrompts] syncJsonWidget pf_json:", json);
+            // log("syncJsonWidget() ok, length:", json.length);
+            // console.log("[FPFoldedPrompts] syncJsonWidget pf_json:", json);
         } catch (e) {
             console.warn("[FPFoldedPrompts] syncJsonWidget() failed:", e);
         }
@@ -722,7 +722,7 @@ import { app } from "../../../scripts/app.js";
         const mainButton = s.mainButton;
         const resetButton = s.resetButton;
 
-        log("updateModeUI()", "mode=", s.mode);
+        // log("updateModeUI()", "mode=", s.mode);
 
         if (s.mode === "text") {
             // TEXT mode: big multiline text, no tree, no reset
@@ -782,7 +782,7 @@ import { app } from "../../../scripts/app.js";
     function handleMainButton(node) {
         const s = node._pf;
         if (!s) return;
-        log("handleMainButton(), current mode:", s.mode);
+        // log("handleMainButton(), current mode:", s.mode);
 
         const textWidget = s.textWidget;
 
@@ -797,7 +797,7 @@ import { app } from "../../../scripts/app.js";
 
             s.mode = "tree";
         } else {
-            log("Converting tree -> text (from current tree)");
+            // log("Converting tree -> text (from current tree)");
             const restore = treeToText(s.tree);
             if (textWidget) {
                 textWidget.value = restore;
@@ -1273,7 +1273,7 @@ import { app } from "../../../scripts/app.js";
                 const node = this;
                 origOnNodeCreated && origOnNodeCreated.apply(node, arguments);
                 node.onMouseDown = function (e, pos, canvas) {
-                    console.log("ouch!");
+                    // console.log("ouch!");
                     e.stopPropagation();
                     return;
                     //  original_onMouseDown?.apply(this, arguments);
