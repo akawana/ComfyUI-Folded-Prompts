@@ -509,56 +509,6 @@ def createImpactWildcard(items: list[str | None]) -> str:
     return "\n".join(lines)
 
 
-_NEGATIVE_TAG_RE = re.compile(
-    r"(?:^|(?<=[,>]))"        # start of line, after a comma or after a <TAG>
-    r"[ \t]*--[ \t]*"         # leading "--"
-    r"([^,\n<]*?)"            # tag content
-    r"[ \t]*"
-    r"(?:,[ \t]*|(?=\n|<|$))",  # trailing comma (+spaces) or end of tag
-    re.MULTILINE,
-)
-
-
-def extractNegotives(text: str) -> tuple[str, str]:
-    """
-    Find every tag that starts with ``--``, cut it out of *text* and collect
-    it (without the ``--``) into a separate string of negative tags.
-
-    Returns
-    -------
-    tuple[str, str]
-        ``(cleaned_text, negatives)`` — *cleaned_text* no longer contains the
-        ``--`` tags; *negatives* is a flat ``"tag, tag, "`` string with
-        duplicates removed (first occurrence order kept).
-
-    Example
-    -------
-    Input::
-
-        lcstl, colored skin, nose, red lips, closed_mouth, --buttons,
-        1girl, solo, --long hair,
-
-    Returns::
-
-        ("lcstl, colored skin, nose, red lips, closed_mouth, \\n1girl, solo, ",
-         "buttons, long hair, ")
-    """
-    if not text:
-        return text, ""
-
-    found: list[str] = []
-
-    def _collect(m: re.Match) -> str:
-        tag = m.group(1).strip()
-        if tag and tag not in found:
-            found.append(tag)
-        return ""
-
-    cleaned = _NEGATIVE_TAG_RE.sub(_collect, text)
-    negatives = "".join(t + ", " for t in found)
-    return cleaned, negatives
-
-
 def clearCommentedLines(text: str, comment_prefix: str = "//") -> str:
     """
     Remove every line that starts with *comment_prefix* (after stripping

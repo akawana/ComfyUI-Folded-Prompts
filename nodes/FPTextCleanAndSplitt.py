@@ -9,7 +9,7 @@ from .PromptUtils import (
     clearHtmlLikeTags, clearHtmlLikeTagsWithContent,
     clearDoubleEmptyLines,
     htmlTagsContentList, getHtmlTagContent, insertStringToListItems,
-    createImpactWildcard,
+    createImpactWildcard, extractNegotives,
 )
 
 _AR_BLOCK_RE = re.compile(r"<AR([1-5])>(.*?)</>", re.DOTALL | re.IGNORECASE)
@@ -115,7 +115,7 @@ class FPTextCleanAndSplitt(io.ComfyNode):
             description=(
                 "Strips comments and splits AR-tagged blocks from prompt text. "
                 "Outputs cleaned text, text without AR areas, per-AR list, "
-                "and an Impact Pack wildcard string."
+                "an Impact Pack wildcard string, and --negative tags."
             ),
             inputs=[
                 io.String.Input(
@@ -144,6 +144,7 @@ class FPTextCleanAndSplitt(io.ComfyNode):
                 io.String.Output(display_name="all_expt_areas"),
                 io.Custom("LIST").Output(display_name="ar_list"),
                 io.String.Output(display_name="impact_wildcard"),
+                io.String.Output(display_name="negotives"),
             ],
             hidden=[io.Hidden.unique_id],
         )
@@ -169,26 +170,27 @@ class FPTextCleanAndSplitt(io.ComfyNode):
 
         if not full_text.strip():
             # print(f"[FP EXECUTE] id={unique_id} => empty input, returning blanks")
-            return io.NodeOutput("", "", [None] * 5, "")
+            return io.NodeOutput("", "", [None] * 5, "", "")
 
         prefix = load_comment_prefix()
         # print(f"[FP EXECUTE] id={unique_id} comment_prefix={prefix!r}")
         uncommented_text = get_uncommented_text(full_text, prefix)
+        uncommented_text, negotives = extractNegotives(uncommented_text)
 
         ar_contents = extract_ar_blocks(uncommented_text)
         found_ars   = [k for k, v in ar_contents.items() if v]
         # print(f"[FP EXECUTE] id={unique_id} AR blocks found: {found_ars if found_ars else 'none'}")
 
-        all_expt_comments = make_all_expt_comments(full_text, prefix)
-        all_expt_areas    = make_all_expt_areas(full_text, prefix)
+        all_expt_comments = make_all_expt_comments(uncommented_text, prefix)
+        all_expt_areas    = make_all_expt_areas(uncommented_text, prefix)
 
         ar_list         = htmlTagsContentList(
-            full_text,
+            uncommented_text,
             ["AR1", "AR2", "AR3", "AR4", "AR5"],
             min_length=5,
             comment_prefix=prefix,
         )
-        all_tag         = getHtmlTagContent(full_text, "ALL", comment_prefix=prefix)
+        all_tag         = getHtmlTagContent(uncommented_text, "ALL", comment_prefix=prefix)
         embeds          = insertStringToListItems(ar_list, all_tag)
         impact_wildcard = createImpactWildcard(embeds)
 
@@ -198,7 +200,7 @@ class FPTextCleanAndSplitt(io.ComfyNode):
         # print(f"[FP EXECUTE] id={unique_id} impact_wildcard={impact_wildcard[:120]!r}")
         # print(f"[FP EXECUTE] id={unique_id} done")
 
-        return io.NodeOutput(all_expt_comments, all_expt_areas, embeds, impact_wildcard)
+        return io.NodeOutput(all_expt_comments, all_expt_areas, embeds, impact_wildcard, negotives)
 
 
 class FPTextCleanAndSplittExtension(ComfyExtension):
